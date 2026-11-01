@@ -1,0 +1,94 @@
+{
+  "admin/services/routepilot": {
+    "title": "RoutePilot 分流助手",
+    "order": 75,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-routepilot"
+      ]
+    }
+  },
+  "admin/services/routepilot/basic": {
+    "order": 1,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    },
+    "hidden": true
+  },
+  "admin/services/routepilot/devices": {
+    "order": 2,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    },
+    "hidden": true
+  },
+  "admin/services/routepilot/dns": {
+    "order": 3,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    },
+    "hidden": true
+  },
+  "admin/services/routepilot/rules": {
+    "title": "规则与更新",
+    "order": 2,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    }
+  },
+  "admin/services/routepilot/advanced": {
+    "order": 5,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    },
+    "hidden": true
+  },
+  "admin/services/routepilot/diagnostics": {
+    "hidden": true,
+    "action": {
+      "type": "alias",
+      "path": "admin/services/routepilot/dns"
+    }
+  },
+  "admin/services/routepilot/backup": {
+    "title": "备份迁移",
+    "order": 3,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    }
+  },
+  "admin/services/routepilot/overview": {
+    "title": "总览",
+    "order": 0,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    }
+  },
+  "admin/services/routepilot/workers": {
+    "order": 6,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    },
+    "hidden": true
+  },
+  "admin/services/routepilot/cloudflare": {
+    "title": "Cloudflare 配置中心",
+    "order": 1,
+    "action": {
+      "type": "view",
+      "path": "routepilot_masque_eec70603de4f"
+    }
+  }
+}
