@@ -1,0 +1,15 @@
+{
+  "upstream": "https://github.com/cmliu/edgetunnel",
+  "commit": "a8ab11125ece9bc27983f609a6359be81b21050c",
+  "source_sha256": "1e84d11af0544654bf56a06fa833e77184a57193288a9ffccf62c031a9fb7d65",
+  "template_sha256": "742dfb3243585a5045796e790a8b6ed77bd7d07dcf24029afca6991d634a994f",
+  "license": "GPL-2.0",
+  "changes": [
+    "Disable synthetic speed tests",
+    "Only /health and authenticated VLESS WS /tunnel; no panel/subscriptions",
+    "Private UUID supplied via secret binding; no user credential embedded",
+    "Native Cloudflare sockets adapter",
+    "Ordered relay groups and 30-second per-isolate connection-failure cooldown",
+    "Authenticated per-isolate status and forced single-relay probes"
+  ]
+}
