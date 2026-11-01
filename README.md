@@ -87,6 +87,22 @@ python3 packages/luci-app-routepilot/tools/check_all.py --luci-core /path/to/tar
 
 Makefile 为版本唯一来源；测试使用 Python / Node 标准库。完整检查需自行取得目标 LuCI 核心文件，不用替身冒充真实 ABI 验收。
 
+## 项目初衷与感谢 / Acknowledgements
+
+RoutePilot 从一个真实的需求开始：让大陆用户在兼容路由器上，更方便地管理访问开放互联网的连接，同时兼顾日常直连、速度体验和可控性。项目由维护者持续提出需求、亲自试用和反馈，并与 AI 工具一起反复开发、检查与改进，逐步走到公开发布。我们希望这些工作能帮助更多有相同需求的人。
+
+首先感谢 **[Cloudflare](https://www.cloudflare.com/)**。WARP、Zero Trust 和 Workers 为这个项目提供了关键的服务与技术基础；RoutePilot 在这些能力之上，把路由器侧的管理、分流和诊断整理为可操作的界面。
+
+感谢 **[ChatGPT / OpenAI](https://openai.com/chatgpt/)**，在需求梳理、技术研究、代码开发、测试、排障和文档整理中参与协作，让一个想法逐步成为可以使用、检查和分享的项目。
+
+感谢 **[Claude Opus / Anthropic](https://www.anthropic.com/claude)**，在关键方案与代码差异的独立技术审查中提供另一份判断，帮助我们发现遗漏、核对边界并改进实现。独立静态审查与实际运行验证各有职责，相关验证范围记录在项目文档中。
+
+也感谢 **OpenWrt、LuCI、cmliu/edgetunnel 及相关开源贡献者**，以及每一位愿意试用、反馈和完善项目的人。项目的进步来自这些基础与协作，也来自维护者坚持把真实问题一个个解决。
+
+我们对更广泛可用性的期待是项目愿景；实际速度和可用性仍取决于运营商、网络环境、Cloudflare 服务、所选出口及硬件，不能将当前测试结果视为对所有地区、所有用户或固定带宽的保证。
+
+**English:** Our thanks go first to Cloudflare for the WARP, Zero Trust and Workers foundations; to ChatGPT / OpenAI for development collaboration; to Claude Opus / Anthropic for independent technical review; and to the OpenWrt, LuCI and upstream open-source communities. RoutePilot is a community project, independently maintained and not an official product or endorsement of these organizations.
+
 ## 许可
 
 RoutePilot 自有代码为 MIT，内置 cmliu/edgetunnel 衍生 Worker 为 GPL-2.0，保留对应源码、许可及来源。第三方客户端和服务按各自条款使用。参见[第三方说明](THIRD_PARTY_NOTICES.txt)。本项目不是 Cloudflare 官方产品。
