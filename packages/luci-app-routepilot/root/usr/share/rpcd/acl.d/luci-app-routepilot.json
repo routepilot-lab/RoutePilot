@@ -1,0 +1,109 @@
+{
+  "luci-app-routepilot": {
+    "description": "Manage only RoutePilot Cloudflare configuration",
+    "read": {
+      "uci": [
+        "routepilot"
+      ],
+      "file": {
+        "/var/run/routepilot/status.json": [
+          "read"
+        ],
+        "/var/run/routepilot/update.json": [
+          "read"
+        ],
+        "/var/run/routepilot/connectivity.json": [
+          "read"
+        ],
+        "/usr/libexec/routepilot-exits": [
+          "exec"
+        ],
+        "/var/run/routepilot/receive.json": [
+          "read"
+        ],
+        "/var/run/routepilot/dns-state.json": [
+          "read"
+        ],
+        "/var/run/routepilot/dns-tests.json": [
+          "read"
+        ],
+        "/var/run/routepilot/traffic.json": [
+          "read"
+        ],
+        "/usr/libexec/routepilot-backup-list": [
+          "exec"
+        ],
+        "/var/run/routepilot/backup-node.json": [
+          "read"
+        ],
+        "/var/run/routepilot/backup-test.json": [
+          "read"
+        ],
+        "/var/run/routepilot/cloud-state.json": [
+          "read"
+        ],
+        "/var/run/routepilot/backup-scan.json": [
+          "read"
+        ],
+        "/var/run/routepilot/relay-tests.json": [
+          "read"
+        ],
+        "/var/run/routepilot/relay-observed.json": [
+          "read"
+        ],
+        "/var/run/routepilot/warp-state.json": [
+          "read"
+        ],
+        "/var/run/routepilot/exit-observation.json": [
+          "read"
+        ],
+        "/var/run/routepilot/connection-events.json": [
+          "read"
+        ],
+        "/usr/share/routepilot/version.json": [
+          "read"
+        ],
+        "/var/run/routepilot/cloud-directory-state.json": [
+          "read"
+        ]
+      },
+      "ubus": {
+        "file": [
+          "read",
+          "exec"
+        ]
+      }
+    },
+    "write": {
+      "uci": [
+        "routepilot"
+      ],
+      "file": {
+        "/usr/libexec/routepilot": [
+          "exec"
+        ],
+        "/var/run/routepilot/auth-input": [
+          "write"
+        ],
+        "/var/run/routepilot/backup-input": [
+          "write"
+        ],
+        "/var/run/routepilot/cloud-input": [
+          "write"
+        ],
+        "/var/run/routepilot/relay-input": [
+          "write"
+        ],
+        "/var/run/routepilot/organization-input": [
+          "write"
+        ]
+      },
+      "ubus": {
+        "file": [
+          "exec",
+          "write"
+        ]
+      }
+    }
+  }
+}
