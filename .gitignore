@@ -1,0 +1,12 @@
+# Local secrets, test artifacts and builds
+.local/
+.env
+.env.*
+!.env.example
+**/__pycache__/
+*.py[cod]
+**/dist/
+*.ipk
+*.tgz
+**/runtime/
+.DS_Store
