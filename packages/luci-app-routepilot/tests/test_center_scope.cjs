@@ -8,7 +8,7 @@ const a=source.indexOf('  function observationCurrent('),b=source.indexOf('  fun
 const current=new Function('feedback',source.slice(a,b)+';return observationCurrent;')(feedback);
 const st={state:'running',time:Date.now()/1000,runtime_id:'r',generation:'g',applied_nonce:'n',exit:'usa',backend:'masque'},row={...st,state:'done',ip:'8.8.8.8',country:'US'};
 assert.equal(current(row,st),true);
-for(const key of ['runtime_id','generation','applied_nonce','exit','backend'])assert.equal(current({...row,[key]:'different'},st),false);
+for(const key of ['runtime_id','generation','applied_nonce','exit','backend','endpoint_generation'])assert.equal(current({...row,[key]:'different'},st),false);
 assert.equal(current({...row,time:Date.now()/1000-301},st),false);assert.equal(current(row,{...st,state:'error'}),false);
 const visible=Object.entries(menu).filter(([k,v])=>k.split('/').length===4&&v.title&&!v.hidden).map(([k])=>k.split('/').at(-1));
 assert.deepEqual(visible.sort(),['overview','cloudflare','rules','backup'].sort());

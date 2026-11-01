@@ -112,21 +112,19 @@ def idle_job():
         yield
 
 
-def save():
-    with idle_job(), w.guard():
-        try:
-            idle_backup()
-            if INPUT.stat().st_size>8192:raise CloudError('输入过大')
-            old = load_settings() if SETTINGS.exists() else {}
-            cfg = valid_settings(json.loads(INPUT.read_text()), old)
-            PRIVATE.mkdir(parents=True,exist_ok=True,mode=0o700);PRIVATE.chmod(0o700)
-            atomic(SETTINGS,json.dumps(cfg))
-            if old.get('token')!=cfg['token']:
-                (PRIVATE/'cloud-directory.json').unlink(missing_ok=True)
-                directory_state().unlink(missing_ok=True)
-            if cfg!=old:public(dict(state='configured',message='凭据已私密保存；尚未创建或修改云端资源',**metadata(cfg)))
-            return dict(saved=True)
-        finally:INPUT.unlink(missing_ok=True)
+def save(request_id=None):
+    from request_input import claim_request
+    with idle_job(), w.guard(), claim_request(INPUT,request_id,8192) as payload:
+        idle_backup()
+        old = load_settings() if SETTINGS.exists() else {}
+        cfg = valid_settings(payload, old)
+        PRIVATE.mkdir(parents=True,exist_ok=True,mode=0o700);PRIVATE.chmod(0o700)
+        atomic(SETTINGS,json.dumps(cfg))
+        if old.get('token')!=cfg['token']:
+            (PRIVATE/'cloud-directory.json').unlink(missing_ok=True)
+            directory_state().unlink(missing_ok=True)
+        if cfg!=old:public(dict(state='configured',message='凭据已私密保存；尚未创建或修改云端资源',**metadata(cfg)))
+        return dict(saved=True,request_id=request_id.split(':')[0])
 
 
 def forget():

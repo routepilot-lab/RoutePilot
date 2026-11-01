@@ -31,7 +31,6 @@ INPUT = RUN / 'backup-input'
 TEST = RUN / 'backup-test.json'
 TUN = 'rp-backup'
 SOCKS_PORT = BACKUP_SOCKS_PORT
-DOH = 'https://dns.google/dns-query'
 HOST = re.compile(r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}')
 
 
@@ -188,25 +187,22 @@ def guard():
         yield
 
 
-def import_node():
+def import_node(request_id=None):
     with guard():
-        return _import_node()
+        return _import_node(request_id)
 
 
-def _import_node():
-    try:
-        if INPUT.stat().st_size > 8192:
-            raise ValueError('备用输入过大')
+def _import_node(request_id):
+    from request_input import claim_request
+    with claim_request(INPUT,request_id,8192) as payload:
         if read_config()['main'].get('backend', 'masque') == 'worker':
             raise ValueError('请先切回主线路，再修改备用节点')
-        node = parse_input(json.loads(INPUT.read_text()))
+        node = parse_input(payload)
         NODE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         NODE.parent.chmod(0o700)
         atomic(NODE, json.dumps(node, ensure_ascii=False), 0o600)
         atomic(RUN / 'backup-node.json', json.dumps(dict(configured=True, fingerprint=fingerprint(node), **metadata(node)), ensure_ascii=False), 0o644)
-        return dict(saved=True, **metadata(node))
-    finally:
-        INPUT.unlink(missing_ok=True)
+        return dict(saved=True, request_id=request_id.split(':')[0], **metadata(node))
 
 
 def pinned(node):

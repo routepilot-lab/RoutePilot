@@ -1,0 +1,6 @@
+/etc/config/routepilot
+/etc/routepilot/endpoint-settings.json
+/etc/routepilot/endpoint-recovery-block.json
+/etc/routepilot/endpoint-applied.json
+/etc/routepilot/endpoint-transaction.json
+/etc/routepilot/recovery-audit/

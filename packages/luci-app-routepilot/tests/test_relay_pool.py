@@ -1,3 +1,4 @@
+from input_fixture import stage
 import contextlib, json, os, sys, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -17,7 +18,7 @@ class RelayTest(unittest.TestCase):
   r.PRIVATE.mkdir();self.stack.enter_context(patch.object(w,'guard',return_value=contextlib.nullcontext()))
   self.stack.enter_context(patch.object(w,'load',return_value=NODE));self.stack.enter_context(patch.object(w,'boot_id',return_value='boot'))
   self.stack.enter_context(patch.object(w,'uptime',return_value=110));self.stack.enter_context(patch.object(r,'read_config',return_value={'main':{'backend':'masque'}}))
- def save(self,rows=ROWS):r.INPUT.write_text(json.dumps({'candidates':rows}));return r.save()
+ def save(self,rows=ROWS):r.INPUT.write_text(json.dumps({'candidates':rows}));return r.save(stage(r.INPUT))
  def proof(self,**changes):
   row=dict(address=ROWS[0]['address'],fingerprint=w.relay_fingerprint(NODE),boot='boot',finished_uptime=100,forced=True,profile=r.PROFILE,checks=[{'ok':True},{'ok':True}]);row.update(changes);return row
  def test_public_addresses_and_bounded_pool(self):

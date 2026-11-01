@@ -1,0 +1,8 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const root=path.join(__dirname,'..'),menu=JSON.parse(fs.readFileSync(path.join(root,'root/usr/share/luci/menu.d/luci-app-routepilot.json'))),name=Object.values(menu)[0].action.path;
+const source=fs.readFileSync(path.join(root,'htdocs/luci-static/resources/view',name+'.js'),'utf8'),a=source.indexOf('  function requestChecksum('),b=source.indexOf('  function backup(){',a);
+assert.ok(a>=0&&b>a);const bound=new Function('window','_',source.slice(a,b)+';return {requestChecksum,boundRequest};')({crypto:crypto.webcrypto},s=>s);
+for(const text of ['',...Array.from([1,55,56,63,64,65,1000,262144],n=>'x'.repeat(n)),'配置😀\r\n'.repeat(1000)])assert.equal(bound.requestChecksum(text),crypto.createHash('sha256').update(text).digest('hex'));
+const one=bound.boundRequest({mode:'manual',address:'162.159.197.2:443'}),two=bound.boundRequest({mode:'manual',address:'162.159.197.2:500'});
+assert.match(one.id,/^[a-f0-9]{32}$/);assert.notEqual(one.id,two.id);assert.equal(one.token,one.id+':'+crypto.createHash('sha256').update(one.text).digest('hex'));assert.equal(JSON.parse(one.text).request_id,one.id);
+console.log('Caller-bound request IDs and SHA-256 match independent Node vectors, Unicode and backup-size payloads');

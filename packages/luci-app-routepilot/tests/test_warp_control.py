@@ -1,3 +1,4 @@
+from input_fixture import stage
 import contextlib,hashlib,json,sys,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -87,7 +88,7 @@ class WarpTest(unittest.TestCase):
   with tempfile.TemporaryDirectory() as folder:
    file=Path(folder)/'input';file.write_text(json.dumps({'organization':'new-team'}))
    cfg={'main':{'organization':'old','apply_nonce':'old-nonce','enabled':'0','exit':'unchanged','dns_foreign':'1.1.1.1'}}
-   with patch.object(w,'ORGANIZATION_INPUT',file),patch.object(w,'read_config',return_value=cfg),patch.object(worker_backend,'guard',return_value=contextlib.nullcontext()),patch.object(runtime,'command') as cmd:out=w.save_organization()
+   with patch.object(w,'ORGANIZATION_INPUT',file),patch.object(w,'read_config',return_value=cfg),patch.object(worker_backend,'guard',return_value=contextlib.nullcontext()),patch.object(runtime,'command') as cmd:out=w.save_organization(stage(w.ORGANIZATION_INPUT))
    self.assertEqual(out['organization'],'new-team');self.assertEqual(cfg['main']['exit'],'unchanged');self.assertFalse(file.exists())
    self.assertEqual([c.args[0] for c in cmd.call_args_list],[['uci','set','routepilot.main.organization=new-team'],['uci','set','routepilot.main.apply_nonce=old-nonce'],['uci','commit','routepilot']])
  def test_organization_save_refuses_live_account_change_and_foreign_fields(self):
@@ -96,7 +97,7 @@ class WarpTest(unittest.TestCase):
    file=Path(folder)/'input'
    for payload in [{'organization':'other'},{'organization':'same','exit':'bad'}]:
     file.write_text(json.dumps(payload))
-    with patch.object(w,'ORGANIZATION_INPUT',file),patch.object(w,'read_config',return_value={'main':{'organization':'same','enabled':'1'}}),patch.object(worker_backend,'guard',return_value=contextlib.nullcontext()),patch.object(runtime,'command') as cmd,self.assertRaises(ValueError):w.save_organization()
+    with patch.object(w,'ORGANIZATION_INPUT',file),patch.object(w,'read_config',return_value={'main':{'organization':'same','enabled':'1'}}),patch.object(worker_backend,'guard',return_value=contextlib.nullcontext()),patch.object(runtime,'command') as cmd,self.assertRaises(ValueError):w.save_organization(stage(w.ORGANIZATION_INPUT))
     cmd.assert_not_called();self.assertFalse(file.exists())
 
 if __name__=='__main__':unittest.main()

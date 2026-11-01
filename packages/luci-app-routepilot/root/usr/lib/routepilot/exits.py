@@ -9,16 +9,6 @@ import uuid
 MAX_NETWORKS = 512
 
 
-def country_hint(name):
-    # A search aid from account labels, never a geolocation or routing promise.
-    labels={'US':r'美国|美國|\b(?:us|usa|united states)\b','KR':r'韩国|韓國|首尔|首爾|\b(?:kr|korea|seoul)\b',
-            'JP':r'日本|东京|東京|\b(?:jp|japan|tokyo)\b','SG':r'新加坡|\b(?:sg|singapore)\b',
-            'HK':r'香港|\b(?:hk|hong kong)\b','TW':r'台湾|台灣|\b(?:tw|taiwan)\b',
-            'DE':r'德国|德國|\b(?:de|germany)\b','GB':r'英国|英國|\b(?:uk|gb|united kingdom)\b'}
-    matches=[code for code,pattern in labels.items() if re.search(pattern,name,re.I)]
-    return matches[0] if len(matches)==1 else None
-
-
 def parse_networks(text):
     if len(text.encode('utf-8')) > 1048576 or '\x1b' in text:
         raise ValueError('出口目录格式无效')
@@ -47,7 +37,7 @@ def parse_networks(text):
         if not name or len(name) > 256 or any(ord(c) < 32 for c in name) or fields.get('Default') not in ('true', 'false') or ident in seen:
             raise ValueError('出口目录内容无效或重复')
         seen.add(ident)
-        items.append(dict(id=ident, name=name, is_default=fields['Default'] == 'true',country_hint=country_hint(name),country_source='account-name-only'))
+        items.append(dict(id=ident, name=name, is_default=fields['Default'] == 'true'))
     return items
 
 

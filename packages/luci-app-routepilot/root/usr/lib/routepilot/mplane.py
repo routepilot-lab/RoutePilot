@@ -24,7 +24,7 @@ def net(args, **kwargs):
 
 def cli(*args, check=True):
     return net(['chroot', str(ROOT), '/usr/bin/warp-cli', '--accept-tos', *args], check=check,
-               timeout=5 if args and args[0] in ('status','settings') else 30)
+               timeout=5 if '--help' in args or args and args[0] in ('status','settings') else 30)
 
 
 def fw4_remove(backend='masque'):

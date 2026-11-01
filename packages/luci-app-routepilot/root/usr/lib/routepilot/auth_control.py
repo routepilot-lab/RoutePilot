@@ -1,7 +1,6 @@
 """Guard first-time registration; never overwrite an existing router identity."""
 from contextlib import contextmanager
 import fcntl,hashlib,json,re,time
-from pathlib import Path
 from public_errors import ControlError
 from runtime import RUN,atomic,read_config
 from mplane import ROOT,cli
@@ -56,15 +55,15 @@ def login():
         atomic(path,json.dumps(dict(phase='ready',time=time.time(),organization=org,identity=identity())))
         return 'https://'+org+'.cloudflareaccess.com/warp'
 
-def register():
+def register(request_id=None):
     path=RUN/'auth-input'
-    with guard():
-        try:
-            org=context()
-            if not pending(org):raise ControlError('未找到当前有效的首次登录请求；已有身份不会被覆盖，请重新读取账户状态')
-            if path.is_symlink() or path.stat().st_mode&0o077 or path.stat().st_size>16000:raise ControlError('登录输入无效，请重新获取官方登录链接')
-            token=path.read_text().strip()
-            if not token.startswith('com.cloudflare.warp://'+org+'.cloudflareaccess.com/auth?token='):raise ControlError('登录链接格式不正确')
-            cli('registration','token',token)
-            (RUN/'auth-pending.json').unlink(missing_ok=True)
-        finally:path.unlink(missing_ok=True)
+    from request_input import claim_request
+    with guard(), claim_request(path,request_id,16000) as payload:
+        org=context()
+        if not pending(org):raise ControlError('未找到当前有效的首次登录请求；已有身份不会被覆盖，请重新读取账户状态')
+        if not isinstance(payload,dict) or set(payload)!={'token'} or not isinstance(payload['token'],str):raise ControlError('登录输入无效')
+        token=payload['token'].strip()
+        if not token.startswith('com.cloudflare.warp://'+org+'.cloudflareaccess.com/auth?token='):raise ControlError('登录链接格式不正确')
+        cli('registration','token',token)
+        (RUN/'auth-pending.json').unlink(missing_ok=True)
+        return dict(registered=True,request_id=request_id.split(':')[0],message='路由器已注册；请读取账户出口并明确选择，再启用设备')

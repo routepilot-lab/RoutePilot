@@ -102,6 +102,22 @@ class AssetsTests(unittest.TestCase):
                 self.assertEqual(conffiles, ['/etc/config/routepilot'])
                 self.assertEqual(sdk, conffiles, 'SDK must not add private API/node files to system backup defaults')
 
+    def test_sdk_and_custom_builder_install_the_same_executables(self):
+        import subprocess,re
+        expected={'etc/init.d/routepilot'}|{'usr/libexec/'+p.name for p in (ROOT/'root/usr/libexec').iterdir() if p.is_file()}
+        recipe=(ROOT/'Makefile').read_text().split('define Package/luci-app-routepilot/install',1)[1].split('endef',1)[0]
+        declared=set(re.findall(r'\$\(1\)/([^\s]+)',next(line for line in recipe.splitlines() if 'chmod 755' in line)))
+        self.assertEqual(declared,expected)
+        with tempfile.TemporaryDirectory() as folder:
+            target=Path(folder)/'install';shutil.copytree(ROOT/'root',target)
+            for name in expected:(target/name).chmod(0o644)
+            subprocess.run(['chmod','755']+[str(target/name) for name in sorted(declared)],check=True)
+            package=builder.build(Path(folder)/'build')
+            with tarfile.open(package,'r:gz') as outer:raw=outer.extractfile('./data.tar.gz').read()
+            with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as payload:
+                for name in expected:
+                    self.assertEqual((target/name).stat().st_mode&0o777,payload.getmember('./'+name).mode)
+
     def test_view_crlf_input_is_normalized_before_hash_and_byte_write(self):
         with tempfile.TemporaryDirectory() as folder:
             root = self.fixture(folder)

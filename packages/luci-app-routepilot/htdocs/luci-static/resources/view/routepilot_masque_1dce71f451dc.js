@@ -17,27 +17,39 @@ function normalizedID(value){return String(value||'').toLowerCase();}
 function configuredExit(){var value=uci.get('routepilot','main','exit');return value==null?'seoul':value;}
 function savedExitID(key){return ['default','seoul','usa'].indexOf(key)>=0?normalizedID(uci.get('routepilot','main','vnet_'+key)):normalizedID(key);}
 function directoryLabel(key,catalog){if(key==null)key=configuredExit();var id=savedExitID(key),item=(catalog.networks||[]).filter(function(n){return n.id===id;})[0];return item?item.name+(item.is_default?' · 账户默认网络':''):(['default','seoul','usa'].indexOf(key)>=0?({default:'旧默认',seoul:'旧首尔',usa:'旧美国'}[key])+'（兼容配置）':String(key||'未选择'));}
+var sectionGroups={account:'advanced',routing:'basic',devices:'devices',dns:'dns',workers:'workers'};
+var legacyPages={basic:'routing',devices:'devices',dns:'dns',diagnostics:'dns',advanced:'account',workers:'workers'};
+var groupSections={advanced:'account',basic:'routing',devices:'devices',dns:'dns',workers:'workers'};
+var activeRender=0;
+function routeLeaf(){var parts=window.location.pathname.split('/').filter(Boolean),leaf=parts.pop();if(leaf==='routepilot')return 'overview';if(leaf==='cloudflare')return groupSections[(window.location.hash||'').replace('#rp-center-','')]||'account';return parts[parts.length-1]==='cloudflare'&&sectionGroups[leaf]?leaf:legacyPages[leaf]||leaf;}
 return view.extend({
  exitOptions: function(current,mapping,catalog) {
   var id=['default','seoul','usa'].indexOf(current)>=0?normalizedID(mapping[current]):normalizedID(current),found=false;
   var networks=catalog.available?catalog.networks:[],names={};networks.forEach(function(n){names[n.name]=(names[n.name]||0)+1;});
   var options=networks.map(function(n){var same=n.id===id;found=found||same;return {value:same&&current?current:n.id,label:n.name+(n.is_default?' · 账户默认网络':'')+(names[n.name]>1?' · '+n.id.slice(0,8):'')};});
-  if(!found)options.unshift({value:current||'',label:current?'保留当前选择：'+String(current)+'（'+(catalog.filtered?'不属于本次地区筛选':catalog.available?'未在本次目录中':'目录读取失败，保留原值')+'）':'请选择账户出口（不会自动选择）'});
+  if(!found)options.unshift({value:current||'',label:current?'保留当前选择：'+String(current)+'（'+(catalog.available?'未在本次目录中':!catalog.read_at?'目录尚未读取，保留原值':'目录读取失败，保留原值')+'）':'请选择账户出口（不会自动选择）'});
   return options;
  },
- load: function() { var legacyLeaf=window.location.pathname.split('/').filter(Boolean).pop(),legacyGroup={basic:'basic',devices:'devices',dns:'dns',diagnostics:'dns',advanced:'advanced',workers:'workers'}[legacyLeaf];if(legacyGroup&&typeof window.location.replace==='function')window.location.replace(L.url('admin/services/routepilot/cloudflare')+'#rp-center-'+legacyGroup);var leaf=window.location.pathname.split('/').filter(Boolean).pop(),needsDirectory=['routepilot','overview','basic','advanced','cloudflare'].indexOf(leaf)>=0;return Promise.all([uci.load('routepilot'), ['devices','cloudflare'].indexOf(leaf)>=0?Promise.resolve().then(function(){return typeof L.probeSystemFeatures==='function'?L.probeSystemFeatures():null;}).then(function(){return network.getHostHints();}).catch(function(){return null;}):Promise.resolve(null), fs.exec('/usr/libexec/routepilot',['interfaces']).then(function(r){return r.code?[]:JSON.parse(r.stdout);}).catch(function(){return [];}), needsDirectory?readExitDirectory():Promise.resolve({available:false,networks:[],skipped:true}), refreshMenuIndex(),['workers','cloudflare'].indexOf(leaf)>=0?fs.exec('/usr/libexec/routepilot-backup-list',[]).then(function(r){return r.code?{nodes:[]}:JSON.parse(r.stdout);}).catch(function(){return {nodes:[]};}):Promise.resolve({nodes:[]}),leaf==='cloudflare'?fs.exec('/usr/libexec/routepilot',['warp-info']).then(function(r){return r.code?null:JSON.parse(r.stdout);}).catch(function(){return null;}):Promise.resolve(null),fs.read('/usr/share/routepilot/version.json').then(JSON.parse).catch(function(){return null;})]); },
+ load: function() {
+  var parts=window.location.pathname.split('/').filter(Boolean),raw=parts[parts.length-1],leaf=routeLeaf();
+  if((legacyPages[raw]&&parts[parts.length-2]!=='cloudflare'||raw==='cloudflare'&&window.location.hash)&&typeof window.location.replace==='function')window.location.replace(L.url('admin/services/routepilot/cloudflare/'+leaf));
+  var devices=leaf==='devices',interfaces=devices||leaf==='routing';
+  return Promise.all([uci.load('routepilot'),devices?Promise.resolve().then(function(){return typeof L.probeSystemFeatures==='function'?L.probeSystemFeatures():null;}).then(function(){return network.getHostHints();}).catch(function(){return null;}):Promise.resolve(null),interfaces?fs.exec('/usr/libexec/routepilot',['interfaces']).then(function(r){return r.code?[]:JSON.parse(r.stdout);}).catch(function(){return [];}):Promise.resolve([]),Promise.resolve({available:false,networks:[],skipped:!['overview','account','routing'].includes(leaf)}),refreshMenuIndex(),leaf==='workers'?fs.exec('/usr/libexec/routepilot-backup-list',[]).then(function(r){return r.code?{nodes:[]}:JSON.parse(r.stdout);}).catch(function(){return {nodes:[]};}):Promise.resolve({nodes:[]}),Promise.resolve(null),fs.read('/usr/share/routepilot/version.json').then(JSON.parse).catch(function(){return null;})]);
+ },
  render: function(data) {
-  var pages=[['cloudflare','Cloudflare 配置中心','主线路、出口地区、设备分流、DNS 与 Workers 备用'],['overview','总览','开关与当前运行状态'],['basic','分流设置','选择出口与接管范围'],['devices','设备管理','只在按设备模式下使用'],['dns','DNS与联网检测','设置解析、检测 DNS 与网页连通性'],['rules','规则与更新','名单、自定义规则与更新反馈'],['advanced','连接向导','首次登录和出口配置'],['workers','Cloudflare备用','独立检测与手动切换'],['backup','备份迁移','导入或导出本插件配置']];
-  var leaf=window.location.pathname.split('/').filter(Boolean).pop(),page=leaf==='diagnostics'?'dns':pages.some(function(p){return p[0]===leaf;})?leaf:'overview';
-  var pageInfo=pages.filter(function(p){return p[0]===page;})[0],base=L.url('admin/services/routepilot');
-  var center=page==='cloudflare',centerDeviceNode=null,centerFields={basic:[],dns:[]},warpState=data[6]||null,exitObservation=null,saveInFlight=null,organizationOption=null,centerComposed=null,centerOpen={},workerStages={},workerBadges={},workerPinned=false,workerStageOpen={},workerFlow={},buildInfo=data[7]||{};
+  var pages=[['account','账户与协议','登录身份、主线路协议与入口'],['routing','出口与分流','直接选择账户出口与接管范围'],['devices','设备','独立设备策略'],['dns','DNS','解析、缓存与联网检测'],['workers','Workers','手动备用的部署、转发与检测'],['overview','总览','开关与当前运行状态'],['rules','规则与更新','名单、自定义规则与更新反馈'],['backup','备份迁移','导入或导出本插件配置']];
+  var leaf=routeLeaf(),page=pages.some(function(p){return p[0]===leaf;})?leaf:'overview';
+  var pageInfo=pages.filter(function(p){return p[0]===page;})[0],base=L.url('admin/services/routepilot'),renderToken=++activeRender;
+  function isCurrentView(){return renderToken===activeRender&&routeLeaf()===page;}
+  var pageGroup=sectionGroups[page],center=!!pageGroup,centerDeviceNode=null,centerFields={basic:[],dns:[]},warpState=data[6]||null,exitObservation=null,saveInFlight=null,organizationOption=null,centerComposed=null,centerOpen={},workerStages={},workerBadges={},workerPinned=false,workerStageOpen={},workerFlow={},buildInfo=data[7]||{};
   var workerActions={},workerDisplays={},workerPanels={},workerMessages={},workerActivity=E('div',{class:'rp-worker-activity',role:'status','aria-live':'polite'}),workerProjectRows=(data[5]&&data[5].cloud&&data[5].cloud.projects)||[],workerProjectsAt=Number(data[5]&&data[5].cloud&&data[5].cloud.projects_read_at||0),cloudDirectoryJob=null,workerInventory=null;
-  var formPage=center||['basic','devices','dns','rules','advanced'].indexOf(page)>=0;
+  var formPage=['account','routing','devices','dns','rules'].includes(page);
   if(!formPage){this.handleSaveApply=null;this.handleSave=null;}
   var m = this.map = new form.Map('routepilot', '', '');
   var s, o, self=this, hints=data[1],catalog=data[3]||{available:false,networks:[]};
   function notify(msg,err) { ui.addNotification(null,E('p',{},msg),err?'error':'info'); }
-  function command(action) { return fs.exec('/usr/libexec/routepilot',[action]).then(function(r){ if(r.code)throw new Error(r.stderr || _('操作未完成')); return r.stdout; }); }
+  function command(action,requestId) { return fs.exec('/usr/libexec/routepilot',requestId?[action,requestId]:[action]).then(function(r){ if(r.code)throw new Error(r.stderr || _('操作未完成')); return r.stdout; }); }
+  function submitInput(name,action,payload){var request=boundRequest(payload);return fs.write('/var/run/routepilot/requests/'+name+'-'+request.id+'.json',request.text,384).then(function(){return command(action,request.token);}).then(function(raw){var result=JSON.parse(raw);if(result.request_id!==request.id)throw Error(_('未收到本次请求确认，请读取当前状态后重试'));return result;});}
   function save(){return (center?saveOrganizationOnly():self.applySettings()).then(function(ok){if(ok===false)throw Error(_('配置未保存，后续操作未执行'));return ok;});}
   var wizardActions={},wizardCards={},wizardBadges={},wizardActive=null,wizardPinned=false,wizardInitialized=false,wizardAdvance=null;
   var wizardStatus=null,wizardTest=null,exitOption=null,liveDNS=null,updateWizard=function(){},wizardSummary=E('p',{role:'status','aria-live':'polite'});
@@ -63,16 +75,16 @@ return view.extend({
    if(directoryPending)return force?directoryPending.then(function(){return refreshDirectory();}):directoryPending;
    directoryStatus.textContent=_('正在读取账户出口，请稍候（客户端查询最长约 8 秒）…');
    var generation=directoryGeneration;
-   directoryPending=Promise.resolve().then(readExitDirectory).catch(function(){return {available:false,networks:[],read_at:Date.now()};}).then(function(next){if(generation!==directoryGeneration)return next;next.last_success_at=next.available?next.read_at:catalog.last_success_at;catalog=next;if(center&&regionFilter)updateRegions();return updateExitChoices().then(function(){return next;});}).finally(function(){directoryPending=null;renderDirectory();});
+   directoryPending=Promise.resolve().then(readExitDirectory).catch(function(){return {available:false,networks:[],read_at:Date.now()};}).then(function(next){if(!isCurrentView()||generation!==directoryGeneration)return next;next.last_success_at=next.available?next.read_at:catalog.last_success_at;catalog=next;return updateExitChoices().then(function(){return next;});}).finally(function(){directoryPending=null;renderDirectory();});
    return directoryPending;
   }
   function updateExitChoices(){
-   if((page!=='basic'&&!center)||!exitOption)return Promise.resolve();
+   if(!isCurrentView()||page!=='routing'||!exitOption)return Promise.resolve();
    var frame=document.getElementById('cbi-routepilot-main-exit'),field=frame&&frame.querySelector('.cbi-value-field');
    if(!field)return Promise.resolve();
    var current=exitOption.formvalue('main');if(current==null)current=configuredExit();
    exitOption.keylist=[];exitOption.vallist=[];
-   self.exitOptions(current,{default:uci.get('routepilot','main','vnet_default'),seoul:uci.get('routepilot','main','vnet_seoul'),usa:uci.get('routepilot','main','vnet_usa')},activeCatalog()).forEach(function(item){exitOption.value(item.value,item.label);});
+   self.exitOptions(current,{default:uci.get('routepilot','main','vnet_default'),seoul:uci.get('routepilot','main','vnet_seoul'),usa:uci.get('routepilot','main','vnet_usa')},catalog).forEach(function(item){exitOption.value(item.value,item.label);});
    var description=field.querySelector('.cbi-value-description');
    return Promise.resolve(exitOption.renderWidget('main',0,current)).then(function(widget){if(description)field.replaceChildren(widget,description);else field.replaceChildren(widget);if(typeof exitOption.triggerValidation==='function')exitOption.triggerValidation('main');});
   }
@@ -82,7 +94,7 @@ return view.extend({
    if(!wizardStatus||wizardStatus.exit!==configuredExit()||id!==savedExitID(wizardStatus.exit))return _('未检测');
    return ({success:_('✓ 当前连接检测通过'),error:_('✕ 当前连接检测失败'),warning:_('! 当前连接访问受限'),busy:_('… 当前连接检测中')})[result]||_('未检测 / 旧结果已过期');
   }
-  if(center||page==='advanced'||page==='basic')renderDirectory();
+  if(page==='account'||page==='routing')renderDirectory();
   s=m.section(form.NamedSection,'main','main',pageInfo[1]);
   var mainSection=s;
   function pageOption(tab){var option=s.option.apply(s,Array.prototype.slice.call(arguments,1));option.routepilotPage=tab;if(center)option.retain=true;if(centerFields[tab])centerFields[tab].push(option);return option;}
@@ -100,13 +112,13 @@ return view.extend({
   o=pageOption('basic',form.Button,'_discover',_('账户出口'));o.inputtitle=_('刷新账户出口（只读）');o.onclick=function(){return refreshDirectory();};
   o=pageOption('basic',form.DummyValue,'_exit_directory',_('目录读取与检测状态'));
   o.renderWidget=function(){return E('div',{},[directoryStatus,E('details',{},[E('summary',{},_('查看账户出口列表')),E('table',{class:'table'},[E('thead',{},E('tr',{},[E('th',{},_('账户可选网络')),E('th',{},_('最近连通检测（仅所测网站）'))])),directoryRows])])]);};
-  o=pageOption('basic',form.DummyValue,'_device_mode',_('按设备的分流模式'));o.depends('scope','devices');o.cfgvalue=function(){return (center?_('到本页“设备分流”分组，'):_('到顶部“设备管理”，'))+_('为每台设备分别选择分流模式：国内 IP 直连、全部代理、代理名单、直连名单或保持原样。不接管未启用的设备；局域网模式不覆盖设备表。');};
+  o=pageOption('basic',form.DummyValue,'_device_mode',_('按设备的分流模式'));o.depends('scope','devices');o.cfgvalue=function(){return _('到“设备”页面，')+_('为每台设备分别选择分流模式：国内 IP 直连、全部代理、代理名单、直连名单或保持原样。不接管未启用的设备；局域网模式不覆盖设备表。');};
   o=pageOption('basic',form.DummyValue,'_info',_('使用说明')); o.rawhtml=false; o.cfgvalue=function(){return _('国内直连流量使用本地宽带 IP；只有代理流量使用所选出口。关闭后撤回本插件的接管规则；其他软件按其自身配置运行。');};
   o=pageOption('dns',form.Value,'dns_domestic',_('国内 DNS'),_('中国域名与自定义直连域名使用本地宽带解析。')); o.datatype='ip4addr'; o.default='223.5.5.5';
   o=pageOption('dns',form.Value,'dns_foreign',_('代理 DNS'),_('主线路的其他普通 DNS 经 WARP 隧道发送。应用自带的 DoH/DoT 不能按普通 DNS 域名规则分类。')); o.datatype='ip4addr'; o.default='1.1.1.1';
   o=pageOption('dns',form.ListValue,'dns_transport',_('上游 DNS 传输')); o.value('tcp','TCP');o.value('udp','UDP');o.default='tcp';
   o=pageOption('dns',form.Flag,'dns_cache',_('启用独立 DNS 缓存'));o.default='1';o.rmempty=false;
-  o=pageOption('dns',form.DummyValue,'_ipv6_info',_('IPv6 与 AAAA'));o.cfgvalue=function(){return center?_('AAAA 过滤由本页接管范围 / 设备分流的 IPv6 处理方式决定。本插件只代理 IPv4；允许 IPv6 直连会绕过代理规则。'):_('AAAA 是否过滤由“分流设置 / 设备管理”的 IPv6 处理方式决定；本插件仅代理 IPv4，允许 IPv6 直连会绕过所有代理规则。');};
+  o=pageOption('dns',form.DummyValue,'_ipv6_info',_('IPv6 与 AAAA'));o.cfgvalue=function(){return center?_('AAAA 过滤由“出口与分流”或“设备”页面中的 IPv6 处理方式决定。本插件只代理 IPv4；允许 IPv6 直连会绕过代理规则。'):_('AAAA 是否过滤由“分流设置 / 设备管理”的 IPv6 处理方式决定；本插件仅代理 IPv4，允许 IPv6 直连会绕过所有代理规则。');};
   [['custom_direct_domains',_('始终直连域名'),'hostname'],['custom_proxy_domains',_('始终代理域名'),'hostname'],['custom_direct_ips',_('始终直连 IPv4/CIDR'),'or(ip4addr,cidr4)'],['custom_proxy_ips',_('始终代理 IPv4/CIDR'),'or(ip4addr,cidr4)']].forEach(function(v){o=pageOption('rules',form.DynamicList,v[0],v[1]);o.datatype=v[2];});
   [['china_url',_('中国 IP 规则')],['china_domains_url',_('中国域名规则')],['gfw_url',_('代理域名名单')],['whitelist_url',_('直连域名名单')]].forEach(function(v){o=pageOption('rules',form.Value,v[0],v[1],_('可信 HTTPS 名单；支持普通域名、domain:、full:。regexp 条目跳过并记录，不执行脚本或编码订阅。'));o.validate=function(id,v){return !v || /^https:\/\/[^\s]+$/.test(v) ? true:_('必须使用 HTTPS');};});
   o=pageOption('rules',form.Value,'update_hours',_('自动更新间隔（小时）'));o.datatype='range(1,720)';o.default='168';
@@ -129,8 +141,8 @@ return view.extend({
      var registerButton=E('button',{class:'btn',click:function(){
       if(registrationPending)return;
       beginWizardStep('auth');registrationPending=true;registerButton.disabled=true;closeButton.disabled=true;
-      return fs.write('/var/run/routepilot/auth-input',token.value,384).then(function(){token.value='';return command('register');}).then(function(msg){
-       registeredHere=true;delete wizardActions.auth;ui.hideModal();notify(msg);return refreshDirectory(true);
+      var loginPayload={token:token.value};token.value='';return submitInput('auth-input','register',loginPayload).then(function(msg){
+       registeredHere=true;delete wizardActions.auth;ui.hideModal();notify(msg.message);return refreshDirectory(true);
       }).catch(function(e){failWizardStep('auth');notify(e.message,true);}).finally(function(){registrationPending=false;registerButton.disabled=false;closeButton.disabled=false;});
      }},_('注册此路由器'));
      ui.showModal(_('登录独立路由器客户端'),[E('p',{},_('打开下方地址，用组织允许的邮箱完成验证。浏览器提示打开本机 Cloudflare 应用时取消；复制成功页的 com.cloudflare.warp:// 登录链接，粘贴到此处。')),E('a',{href:url.trim(),target:'_blank',rel:'noopener'},url.trim()),token,registerButton,closeButton]);
@@ -150,7 +162,7 @@ return view.extend({
   o=s.option(form.ListValue,'mode',_('分流模式'));
   [['bypass_cn',_('国内 IP 直连，其余代理')],['global',_('全部代理')],['gfw',_('仅代理名单内域名')],['whitelist',_('仅直连名单内域名')],['direct',_('保持原样，不接管')]].forEach(function(v){o.value(v[0],v[1]);});o.default='bypass_cn';
   o=s.option(form.ListValue,'ipv6_mode',_('IPv6 处理方式'),_('仅按设备模式生效。允许直连会绕过代理隧道 和全部代理规则，可能使用宽带真实出口；不创建 IPv6。分流模式为“保持原样”时 IPv6 本就不受管理，此项不生效。'));o.value('inherit',_('跟随默认'));o.value('block',_('阻断 IPv6'));o.value('direct',_('允许 IPv6 直连'));o.default='inherit';o.rmempty=false;['global','bypass_cn','gfw','whitelist'].forEach(function(mode){o.depends('mode',mode);});o.retain=true;
-  if(page==='advanced'||center){
+  if(page==='account'){
    var originalSectionRender=mainSection.render.bind(mainSection);
    mainSection.render=function(){return originalSectionRender.apply(null,arguments).then(function(node){
     var steps=[];
@@ -189,7 +201,7 @@ return view.extend({
      para(_('复制登录成功页面里的完整 com.cloudflare.warp://… 登录链接，粘贴回插件弹窗，点击“注册此路由器”。这是临时登录凭据，不要分享或发到 GitHub。')),
      para(_('成功标志：提示路由器已注册。若邮箱无权限，在 Cloudflare 的设备注册权限中允许该邮箱；链接失效则重新登录获取，不要反复粘贴旧链接。'))
     ],['_login','_account_check']);
-    var wizardNext=E('div',{class:'cbi-section'},[E('h3',{},_('连接准备已完成')),para(_('账户目录已可访问。请在本页“出口与接管范围”明确选择并保存；DNS 与网页检查在“DNS 与联网检测”分组。')),E('a',{href:base+'/cloudflare#rp-center-basic',class:'btn cbi-button-action'},_('继续设置分流 →'))]);
+    var wizardNext=E('div',{class:'cbi-section'},[E('h3',{},_('连接准备已完成')),para(_('账户目录已可访问。请到“出口与分流”页面明确选择并保存；DNS 与网页检查在“DNS”页面。')),E('a',{href:base+'/cloudflare/routing',class:'btn cbi-button-action'},_('继续设置分流 →'))]);
     wizardNext.hidden=true;
     var guide=E('div',{class:'rp-guide'},[
      para(_('绿色 ✓ 表示该步已有成功证据；红色 ✕ 表示实际失败；蓝色 … 表示处理中；灰色 ○ 表示未执行或待确认。成功后自动展开下一步，不自动执行登录、注册、保存或启用。手动回看时保留你的展开位置。')),
@@ -213,23 +225,22 @@ return view.extend({
      wizardSummary.textContent=_('已完成 ')+states.filter(function(st){return st.state==='success';}).length+'/3 · '+(registeredHere&&!catalog.available?_('已注册，账户目录暂未就绪，请稍后重新检查。'):_('已有账户可沿用；出口与范围在“分流设置”统一选择。'))+(catalog.last_success_at?_(' · 上次账户检查：')+new Date(catalog.last_success_at).toLocaleString():'');
     };
     updateWizard();
-    if(center)node.appendChild(guide);else{var protocol=node.querySelector('[id="cbi-routepilot-main-warp_protocol"]');node.replaceChildren(guide);if(protocol)node.appendChild(protocol);}return node;
+    node.appendChild(guide);return node;
    });};
   }
-  mainSection.children=mainSection.children.filter(function(o){return center?['advanced','basic','dns'].indexOf(o.routepilotPage)>=0:o.routepilotPage===page;});
-  if(center){var renderDevices=ps.render.bind(ps);ps.render=function(){return renderDevices.apply(null,arguments).then(function(node){centerDeviceNode=node;return node;});};}
-  m.children=center?[mainSection,ps]:page==='devices'?[s]:formPage?[mainSection]:[];
+  mainSection.children=mainSection.children.filter(function(o){return center?o.routepilotPage===pageGroup:o.routepilotPage===page;});
+  if(page==='devices'){var renderDevices=ps.render.bind(ps);ps.render=function(){return renderDevices.apply(null,arguments).then(function(node){centerDeviceNode=node;return node;});};}
+  m.children=page==='devices'?[ps]:formPage?[mainSection]:[];
   var status=E('p',{role:'status','aria-live':'polite'},_('正在读取实际运行状态…'));
   var rulesProgress=E('p',{},_('正在读取规则状态…')),rulesTime=E('p'),rulesCounts=E('div'),lastRule=null;
   var testsInfo=E('p',{},_('路由器侧 HTTPS 检测：代理网站在隧道环境测试，国内网站在主机环境测试；不代表受管设备 DNS 或 LAN 端到端验收。'));
   var testCells={},testNames={google:'Google',youtube:'YouTube',github:'GitHub',taobao:'淘宝',baidu:'百度'};
   var testRows=Object.keys(testNames).map(function(k){var result=E('td',{},_('未检测')),delay=E('td',{},'—');testCells[k]={result:result,delay:delay};return E('tr',{},[E('td',{},testNames[k]),E('td',{},k==='taobao'||k==='baidu'?_('国内直连'):_('当前代理出口')),result,delay]);});
-  var testButton=E('button',{class:'btn cbi-button-action',click:function(){if((page==='dns'||center)&&(!feedback.fresh(wizardStatus,Date.now())||wizardStatus.state!=='running')){notify(_('请先在总览手动开启，并等待主线路已连接后再检测。'),true);return;}testButton.disabled=true;testsInfo.textContent=_('正在检测，最长约 10 秒…');Object.keys(testCells).forEach(function(k){testCells[k].result.textContent=_('检测中…');testCells[k].delay.textContent='—';});command('test').catch(function(e){testsInfo.textContent=e.message;testButton.disabled=false;});}},_('一键检测全部'));
+  var testButton=E('button',{class:'btn cbi-button-action',click:function(){if((center)&&(!feedback.fresh(wizardStatus,Date.now())||wizardStatus.state!=='running')){notify(_('请先在总览手动开启，并等待主线路已连接后再检测。'),true);return;}testButton.disabled=true;testsInfo.textContent=_('正在检测，最长约 10 秒…');Object.keys(testCells).forEach(function(k){testCells[k].result.textContent=_('检测中…');testCells[k].delay.textContent='—';});command('test').catch(function(e){testsInfo.textContent=e.message;testButton.disabled=false;});}},_('一键检测全部'));
   var switchEnabled=uci.get('routepilot','main','enabled')==='1',switchPending=null;
   var switchText=E('p',{},_('新安装默认关闭。开关立即生效，无需点击页面底部保存；不会提交尚未保存的其他设置。'));
   var switchFeedback=E('div',{hidden:true},switchText);
   var powerButton=E('button',{class:'btn cbi-button-action',click:function(){switchFeedback.hidden=false;var action=switchEnabled?'disable':'enable';powerButton.disabled=true;switchText.textContent=_('正在切换，等待后台确认…');command(action).then(function(msg){var result=JSON.parse(msg);switchEnabled=result.enabled;uci.set('routepilot','main','enabled',switchEnabled?'1':'0');uci.set('routepilot','main','preparing','0');switchPending={nonce:result.nonce,started:Date.now()};powerButton.textContent=switchEnabled?_('关闭 RoutePilot'):_('开启 RoutePilot');}).catch(function(e){switchText.textContent=e.message;powerButton.disabled=false;});}},switchEnabled?_('关闭 RoutePilot'):_('开启 RoutePilot'));
-  var statusCard=E('div',{class:'cbi-section',style:'border-left:4px solid #2254d1'},[E('h3',{},_('实际运行状态')),status]);
   var backupNode=null,backupTest=null,backupBusy=false,backupRequested=0,backupSwitch=null;
   var backupInfo=E('p',{role:'status'},_('正在读取备用状态…')),backupResult=E('div'),backupProgress=E('p',{class:'rp-help'});
   var backupSource=E('select',{'aria-label':_('备用节点来源')},[E('option',{value:'current'},_('保留已配置备用，只调整入口')),E('option',{value:'saved'},_('从原有节点读取（不修改原配置）')),E('option',{value:'uri'},_('粘贴 VLESS＋WS＋TLS 链接'))]);
@@ -243,7 +254,7 @@ return view.extend({
   backupEntry.addEventListener('change',function(){backupIPBox.hidden=backupEntry.value!=='ip';});
   var backupImport=E('button',{class:'btn',click:function(){
    workerActionStage('use');startWorkerOperation('use',_('保存备用节点'),'backup',null,backupTest);backupBusy=true;updateBackup(backupNode,backupTest,wizardStatus);var input={source:backupSource.value,entry:backupEntry.value};if(input.source==='uri')input.uri=backupURI.value;else if(input.source==='saved')input.id=backupSaved.value;if(input.entry==='ip')input.ip=backupIP.value;
-   return fs.write('/var/run/routepilot/backup-input',JSON.stringify(input),384).then(function(){backupURI.value='';return command('backup-import');}).then(function(){backupInfo.textContent=_('备用节点已保存；尚未切换，下一步请独立检测。');backupTest=null;acceptWorkerOperation('use',{message:_('✓ 节点已保存，尚未启用。可在本组顶部“当前保存的备用节点”查看。')},false);return refreshWorkerMetadata();}).catch(function(e){failWorkerOperation('use',e.message);notify(e.message,true);}).finally(function(){backupBusy=false;updateWorkerProgress();});
+   backupURI.value='';return submitInput('backup-input','backup-import',input).then(function(){backupInfo.textContent=_('备用节点已保存；尚未切换，下一步请独立检测。');backupTest=null;acceptWorkerOperation('use',{message:_('✓ 节点已保存，尚未启用。可在本组顶部“当前保存的备用节点”查看。')},false);return refreshWorkerMetadata();}).catch(function(e){failWorkerOperation('use',e.message);notify(e.message,true);}).finally(function(){backupBusy=false;updateWorkerProgress();});
   }},_('保存备用节点（不切换）'));
   var backupProbe=E('button',{class:'btn',click:function(){workerActionStage('use');startWorkerOperation('use',_('独立检测与测速'),'backup',null,backupTest);backupBusy=true;backupRequested=Date.now();updateBackup(backupNode,backupTest,wizardStatus);return command('backup-test').then(function(raw){acceptWorkerOperation('use',JSON.parse(raw),true);}).catch(function(e){failWorkerOperation('use',e.message);notify(e.message,true);backupRequested=0;}).finally(function(){backupBusy=false;updateWorkerProgress();});}},_('独立检测与测速（约 1 MiB）'));
   function switchBackup(action){startWorkerOperation('use',action==='backup-enable'?_('手动启用备用'):_('切回主线路'),'switch',null,wizardStatus);backupBusy=true;updateBackup(backupNode,backupTest,wizardStatus);return command(action).then(function(raw){var r=JSON.parse(raw);uci.set('routepilot','main','backend',r.backend);uci.set('routepilot','main','apply_nonce',r.nonce);backupSwitch={nonce:r.nonce,backend:r.backend,started:Date.now()};backupProgress.textContent=_('已提交手动切换，等待实际状态确认…');acceptWorkerOperation('use',{message:backupProgress.textContent},false);workerActions.use.waitingSwitch=true;}).catch(function(e){failWorkerOperation('use',e.message);notify(e.message,true);}).finally(function(){backupBusy=false;updateWorkerProgress();});}
@@ -306,7 +317,7 @@ return view.extend({
      E('div',{class:'rp-cloud-grid'},[cloudField(_('转发主机:端口'),m.address),cloudField(_('来源说明'),m.source),cloudField(_('公开来源链接（可选）'),m.link,_('只填写公开资料链接，不填私人订阅、账户或口令。'))]),sourceNote,info,E('div',{class:'rp-backup-actions'},[up,down,remove]) ]));
    });refreshRelayButtons();
   }
-  function saveRelayRows(){var rows=relayValues();return fs.write('/var/run/routepilot/relay-input',JSON.stringify({candidates:rows}),384).then(function(){return command('relay-save');}).then(function(raw){var result=JSON.parse(raw);savedRelayRows=result.candidates;relaySavedHash=result.order_hash;relayDirty=false;cloudRelay.value=savedRelayRows.filter(function(r){return r.enabled;}).map(function(r){return r.address;}).join(',');relayInfo.textContent=result.message;return result;});}
+  function saveRelayRows(){var rows=relayValues();return submitInput('relay-input','relay-save',{candidates:rows}).then(function(result){savedRelayRows=result.candidates;relaySavedHash=result.order_hash;relayDirty=false;cloudRelay.value=savedRelayRows.filter(function(r){return r.enabled;}).map(function(r){return r.address;}).join(',');relayInfo.textContent=result.message;return result;});}
   function relayAction(action){workerActionStage('relay');startWorkerOperation('relay',({save:_('保存候选与顺序'),test:_('逐项强制检测 PROXYIP'),apply:_('应用已通过的主备顺序'),status:_('读取实例切换记录')})[action],'relay',null,relayTest);relayBusy=true;refreshRelayButtons();return (action==='save'?saveRelayRows():command('relay-'+action)).then(function(raw){var r=typeof raw==='string'?JSON.parse(raw):raw;acceptWorkerOperation('relay',r,action==='test');if(action==='apply')return refreshWorkerMetadata();}).catch(function(e){failWorkerOperation('relay',e.message);notify(e.message,true);}).finally(function(){relayBusy=false;refreshRelayButtons();updateWorkerProgress();});}
   var relayAdd=E('button',{class:'btn',click:function(){relayModels.push(relayModel({enabled:true}));markRelayDirty();renderRelayRows();}},_('添加候选'));
   var relaySave=E('button',{class:'btn',click:function(){return relayAction('save');}},_('保存候选与顺序（不切换）'));
@@ -338,7 +349,7 @@ return view.extend({
   var cloudRelay=E('input',{type:'text',value:savedRelayRows.filter(function(r){return r.enabled;}).map(function(r){return r.address;}).join(','),'aria-label':_('公共转发 PROXYIP')});
   function saveCloud(){
    var input={token:cloudToken.value,account_id:cloudAccount.value.trim(),script:cloudName.value.trim(),hostname:cloudHost.value.trim(),zone_id:cloudZone.value,proxyip:savedRelayRows.filter(function(r){return r.enabled;}).map(function(r){return r.address;}).join(',')};
-   return fs.write('/var/run/routepilot/cloud-input',JSON.stringify(input),384).then(function(){cloudToken.value='';return command('cloud-save');});
+   cloudToken.value='';return submitInput('cloud-input','cloud-save',input);
   }
   function cloudAction(action,saveFirst){
    var title={verify:saveFirst?_('保存授权并读取账户 / 域名'):_('只读刷新账户 / 根域名'),target:_('检查名称与域名占用'),deploy:_('创建 Workers 与绑定域名'),check:_('只读核验部署与证书'),promote:_('将部署保存为备用节点'),forget:_('清除本机 API 授权')}[action]||action;
@@ -431,10 +442,10 @@ return view.extend({
   var trafficCard=E('section',{class:'cbi-section rp-traffic-section'},[E('div',{class:'rp-hero-heading'},[E('h3',{},_('流量观测')),rangeControls]),trafficNote,E('div',{class:'rp-metric-grid'},metricCards),E('div',{class:'rp-trend-heading'},[E('strong',{},_('近 7 天')),weekLegend]),weekChart,E('details',{class:'rp-stat-details'},[E('summary',{},_('统计口径与采样详情')),trafficMeta])]);
   var nodeCount=E('span',{class:'rp-group-state'},'—'),nodeSummary=E('p'),nodeTime=E('p',{class:'rp-help'});
   var nodeRefresh=E('button',{class:'btn',click:function(){nodeRefresh.disabled=true;return refreshDirectory().finally(function(){nodeRefresh.disabled=false;});}},_('刷新出口目录'));
-  var nodeCard=E('section',{class:'cbi-section'},[E('div',{class:'rp-hero-heading'},[E('h3',{},[_('账户出口'),nodeCount]),E('a',{href:base+'/cloudflare#rp-center-basic'},_('管理全部出口 →'))]),nodeSummary]);
+  var nodeCard=E('section',{class:'cbi-section'},[E('div',{class:'rp-hero-heading'},[E('h3',{},[_('账户出口'),nodeCount]),E('a',{href:base+'/cloudflare/routing'},_('管理全部出口 →'))]),nodeSummary]);
   connectionDirectory.appendChild(E('details',{class:'rp-stat-details'},[E('summary',{},_('账户目录时间与刷新')),nodeTime,nodeRefresh]));
   var versionInfo=E('p',{class:'rp-help'},_('客户端版本正在读取…'));
-  var quickCard=E('section',{class:'cbi-section','aria-label':_('快捷操作')},[E('div',{class:'rp-quick-grid'},[['cloudflare#rp-center-basic','↗',_('出口与分流'),_('查看当前出口和接管范围')],['cloudflare#rp-center-dns','◎',_('DNS 与联网检测'),_('检查解析、网页并清理缓存')],['cloudflare#rp-center-workers','⌁',_('Workers 备用'),_('部署、优选和独立检测')]].map(function(q){return E('a',{class:'rp-quick-tile',href:base+'/'+q[0]},[E('span',{class:'rp-quick-icon','aria-hidden':'true'},q[1]),E('span',{},[E('strong',{},q[2]),E('small',{},q[3])])]);}))]);
+  var quickCard=E('section',{class:'cbi-section','aria-label':_('快捷操作')},[E('div',{class:'rp-quick-grid'},[['cloudflare/routing','↗',_('出口与分流'),_('查看当前出口和接管范围')],['cloudflare/dns','◎',_('DNS 与联网检测'),_('检查解析、网页并清理缓存')],['cloudflare/workers','⌁',_('Workers 备用'),_('部署、优选和独立检测')]].map(function(q){return E('a',{class:'rp-quick-tile',href:base+'/'+q[0]},[E('span',{class:'rp-quick-icon','aria-hidden':'true'},q[1]),E('span',{},[E('strong',{},q[2]),E('small',{},q[3])])]);}))]);
   function bytes(n){if(!Number.isFinite(n)||n<0)return '—';var units=['B','KiB','MiB','GiB','TiB'],i=0;while(n>=1024&&i<units.length-1){n/=1024;i++;}return (i?n.toFixed(n<10?2:1):String(Math.round(n)))+' '+units[i];}
   function validTrafficCounts(v){return v&&['proxy_up','proxy_down','direct_up','direct_down'].every(function(k){return Number.isSafeInteger(v[k])&&v[k]>=0;});}
   function updateTraffic(v){
@@ -524,53 +535,69 @@ return view.extend({
    if(update&&feedback.updateRunning(lastRule,Date.now())){var b=E('div',{},lastRule.phase);pendingUpdate={nonce:lastRule.request_id,box:b};ui.showModal(_('规则正在更新'),[b,E('button',{class:'btn',click:ui.hideModal},_('关闭'))]);return Promise.resolve();}
    var nonce=String(Date.now()),box=E('div',{},E('p',{},_('正在提交本插件配置…')));uci.set('routepilot','main','apply_nonce',nonce);if(update)uci.set('routepilot','main','update_nonce',nonce);
    pendingApply={nonce:nonce,box:box,started:Date.now(),update:update};if(update)pendingUpdate={nonce:nonce,box:box};
-   ui.showModal(update?_('规则更新进度'):_('应用配置'),[box,E('button',{class:'btn',click:function(){ui.hideModal();if(statusCard.isConnected)statusCard.scrollIntoView({behavior:'smooth',block:'start'});}},_('关闭'))]);
-   saveInFlight=Promise.resolve().then(function(){return m.save();}).then(function(){return uci.save();}).then(function(){return commitConfig('routepilot');}).then(function(){committedOrganization=uci.get('routepilot','main','organization')||'';delete wizardActions.org;updateWizard();box.textContent=update?_('请求已提交，等待后台开始更新…'):_('配置已提交，正在等待实际应用结果…');return {nonce:nonce};}).catch(function(e){box.textContent=_('未完成：')+e.message;pendingApply=null;pendingUpdate=null;if((page==='advanced'||center)&&wizardActions.org)failWizardStep('org');return false;}).finally(function(){saveInFlight=null;});return saveInFlight;
+   ui.showModal(update?_('规则更新进度'):_('应用配置'),[box,E('button',{class:'btn',click:function(){ui.hideModal();}},_('关闭'))]);
+   saveInFlight=Promise.resolve().then(function(){return m.save();}).then(function(){return uci.save();}).then(function(){return commitConfig('routepilot');}).then(function(){committedOrganization=uci.get('routepilot','main','organization')||'';delete wizardActions.org;updateWizard();box.textContent=update?_('请求已提交，等待后台开始更新…'):_('配置已提交，正在等待实际应用结果…');return {nonce:nonce};}).catch(function(e){box.textContent=_('未完成：')+e.message;pendingApply=null;pendingUpdate=null;if((center)&&wizardActions.org)failWizardStep('org');return false;}).finally(function(){saveInFlight=null;});return saveInFlight;
   }
   self.applySettings=function(){return submitSettings(false);};self.requestRulesUpdate=function(){return submitSettings(true);};
-  poll.add(function(){return Promise.all(['/var/run/routepilot/status.json','/var/run/routepilot/update.json','/var/run/routepilot/connectivity.json'].concat(center?['/var/run/routepilot/receive.json','/var/run/routepilot/dns-state.json','/var/run/routepilot/dns-tests.json','/var/run/routepilot/backup-node.json','/var/run/routepilot/backup-test.json','/var/run/routepilot/cloud-state.json','/var/run/routepilot/backup-scan.json','/var/run/routepilot/relay-tests.json','/var/run/routepilot/relay-observed.json','/var/run/routepilot/warp-state.json','/var/run/routepilot/exit-observation.json']:page==='dns'?['/var/run/routepilot/receive.json','/var/run/routepilot/dns-state.json','/var/run/routepilot/dns-tests.json']:page==='overview'?['/var/run/routepilot/traffic.json']:page==='workers'?['/var/run/routepilot/backup-node.json','/var/run/routepilot/backup-test.json','/var/run/routepilot/cloud-state.json','/var/run/routepilot/backup-scan.json','/var/run/routepilot/relay-tests.json','/var/run/routepilot/relay-observed.json']:[]).concat((center||page==='workers')?['/var/run/routepilot/connection-events.json','/var/run/routepilot/cloud-directory-state.json']:['/var/run/routepilot/connection-events.json']).map(function(path){return fs.read(path).then(JSON.parse).catch(function(){return null;});})).then(function(files){
-   var hasDirectory=center||page==='workers';updateConnectionHistory(files[files.length-(hasDirectory?2:1)]);if(hasDirectory)updateDirectory(files[files.length-1]);wizardStatus=files[0];wizardTest=files[2];if(center){updateBackup(files[6],files[7],files[0]);updateCloud(files[8]);updateScan(files[9]);updateRelays(files[10],files[11]);updateReceive(files[3],files[0]);updateDNS(files[4],files[5],files[0]);warpState=files[12]||warpState;exitObservation=files[13]||exitObservation;updateCenter();}if(page==='workers'){updateBackup(files[3],files[4],files[0]);updateCloud(files[5]);updateScan(files[6]);updateRelays(files[7],files[8]);}if(page==='overview'){updateOverview(files[0],files[2]);updateTraffic(files[3]);}
+  var runtimeFiles=['status.json','update.json','connectivity.json','receive.json','dns-state.json','dns-tests.json','backup-node.json','backup-test.json','cloud-state.json','backup-scan.json','relay-tests.json','relay-observed.json','warp-state.json','exit-observation.json','traffic.json','connection-events.json','cloud-directory-state.json'];
+  var runtimeSlots={overview:[0,2,14,15],account:[0,12,13],routing:[0,2,13],devices:[0],dns:[0,2,3,4,5,15],workers:[0,6,7,8,9,10,11,13,15,16],rules:[0,1],backup:[]}[page]||[];
+  poll.add(function(){if(!isCurrentView())return Promise.resolve();return Promise.all(runtimeFiles.map(function(file,index){return runtimeSlots.indexOf(index)>=0?fs.read('/var/run/routepilot/'+file).then(JSON.parse).catch(function(){return null;}):Promise.resolve(null);})).then(function(files){
+   if(!isCurrentView())return;
+   var hasDirectory=page==='workers';if(files[15])updateConnectionHistory(files[15]);if(hasDirectory)updateDirectory(files[16]);wizardStatus=files[0];wizardTest=files[2];
+   if(page==='workers'){updateBackup(files[6],files[7],files[0]);updateCloud(files[8]);updateScan(files[9]);updateRelays(files[10],files[11]);}
    if(page==='dns'){updateReceive(files[3],files[0]);updateDNS(files[4],files[5],files[0]);}
-   updateWorkerProgress();updateWorkerFlow();
+   if(center){warpState=files[12]||warpState;exitObservation=files[13]||exitObservation;updateCenter();}
+   if(page==='overview'){updateOverview(files[0],files[2]);updateTraffic(files[14]);}
+   if(page==='workers'){updateWorkerProgress();updateWorkerFlow();}
    if(hasDirectory&&!cloudDirectoryAuto&&!cloudBusy&&!workerActions.deploy&&cloudMeta.token_saved&&!cloudToken.value&&(!cloudDirectory||cloudDirectory.stale)&&!(cloudState&&['queued','running'].indexOf(cloudState.state)>=0)){cloudDirectoryAuto=true;cloudAction('verify',false);}
    var v=files[0],fresh=feedback.fresh(v,Date.now());if(v){
     if(switchPending){if(fresh&&v.applied_nonce===switchPending.nonce&&v.state===(switchEnabled?'running':'disabled')){switchText.textContent=switchEnabled?_('已开启，正在按保存的范围和规则接管网络。'):_('已关闭，本插件已退出接管；恢复此前的网络方式。');powerButton.disabled=false;switchPending=null;}else if(fresh&&v.state==='error'&&v.attempted_nonce===switchPending.nonce){switchText.textContent=_('开启失败：')+v.message;powerButton.disabled=false;switchPending=null;}else if(Date.now()-switchPending.started>45000){switchText.textContent=_('尚未收到切换确认，请查看实际运行状态。');powerButton.disabled=false;switchPending=null;}}
 var exitName=v.backend==='worker'?(v.backup_name||_('Workers 备用')):directoryLabel(v.exit,catalog),message=v.message||v.state;if(!catalog.skipped&&v.state==='preparing'&&message==='登录环境已就绪；请完成邮箱登录，再自动读取出口')message=catalog.available?_('登录环境已就绪，分流尚未开启；已读到 ')+catalog.networks.length+_(' 个账户网络（未验证连通性）'):_('登录环境已就绪；出口目录暂未取得，可重新检查账户，或到分流设置刷新目录');status.textContent=String(message)+' · '+_('出口：')+exitName+' · IP '+String(v.exit_ip||'—')+' · '+(v.scope==='lan'?_('所选局域网'):_('接管设备：')+(Array.isArray(v.devices)?v.devices.length:0));status.style.color=fresh&&v.state==='running'?'#087443':v.state==='error'?'#b42318':'#555';if(!fresh){status.textContent=_('运行状态已过期，无法确认 WARP 或直连是否生效；请检查服务。');status.style.color='#a15c00';}
     if(pendingApply){var p=pendingApply;if(fresh&&v.applied_nonce===p.nonce&&['running','disabled','preparing'].indexOf(v.state)>=0){p.box.textContent=p.update?_('配置已应用，等待规则更新反馈…'):_('已应用成功：')+status.textContent;pendingApply=null;}else if(fresh&&v.state==='error'&&v.attempted_nonce===p.nonce){p.box.textContent=_('应用失败：')+v.message;pendingApply=null;pendingUpdate=null;}else if(Date.now()-p.started>45000){p.box.textContent=_('已提交，但尚未收到应用确认。请检查页面顶部的实际运行状态。');pendingApply=null;}}
    }else status.textContent=_('尚无运行状态，未能确认服务是否生效。');
-   if(files[1])updateFeedback(files[1]);else rulesProgress.textContent=_('尚无更新记录；点击“规则与更新 → 立即更新规则”查看完整反馈。');
-   var t=files[2];if(t){var detecting=feedback.diagnosticRunning(t,Date.now()),staleTest=feedback.diagnosticStale(t,v,Date.now())||((page==='dns'||center)&&(v&&v.applied_nonce!==wizardConfig().nonce||v&&v.backend!=='worker'&&v.exit!==configuredExit()||t.state==='done'&&(!Number.isFinite(Number(t.finished_at))||Date.now()/1000-Number(t.finished_at)>300))); testButton.disabled=detecting||((page==='dns'||center)&&(!feedback.fresh(v,Date.now())||v.state!=='running'));testsInfo.textContent=detecting?_('正在检测，最长约 10 秒…'):((t.state==='running'?_('检测已中断或超时，结果未知；可以重新检测。'):_('检测时间：')+when(t.finished_at))+' · '+_('代理出口：')+String(t.exit_ip||'—')+(staleTest?' · '+_('历史结果已过期，不能代表当前网络，请重新检测'):''));(t.results||[]).forEach(function(r){var c=testCells[r.id];if(!c)return;c.result.textContent=(staleTest?_('历史：'):'')+(r.message||_('等待检测'));c.result.style.color=staleTest?'#777':r.state==='ok'?'#087443':r.state==='pending'?'#2254d1':r.state==='restricted'?'#a15c00':'#b42318';c.delay.textContent=r.ms!=null?r.ms+' ms':'—';});}
-   if(center||page==='advanced'||page==='basic'){renderDirectory();}
+   if(page==='rules'&&files[1])updateFeedback(files[1]);else rulesProgress.textContent=_('尚无更新记录；点击“规则与更新 → 立即更新规则”查看完整反馈。');
+   var t=files[2];if(t){var detecting=feedback.diagnosticRunning(t,Date.now()),staleTest=feedback.diagnosticStale(t,v,Date.now())||((center)&&(v&&v.applied_nonce!==wizardConfig().nonce||v&&v.backend!=='worker'&&v.exit!==configuredExit()||t.state==='done'&&(!Number.isFinite(Number(t.finished_at))||Date.now()/1000-Number(t.finished_at)>300))); testButton.disabled=detecting||((center)&&(!feedback.fresh(v,Date.now())||v.state!=='running'));testsInfo.textContent=detecting?_('正在检测，最长约 10 秒…'):((t.state==='running'?_('检测已中断或超时，结果未知；可以重新检测。'):_('检测时间：')+when(t.finished_at))+' · '+_('代理出口：')+String(t.exit_ip||'—')+(staleTest?' · '+_('历史结果已过期，不能代表当前网络，请重新检测'):''));(t.results||[]).forEach(function(r){var c=testCells[r.id];if(!c)return;c.result.textContent=(staleTest?_('历史：'):'')+(r.message||_('等待检测'));c.result.style.color=staleTest?'#777':r.state==='ok'?'#087443':r.state==='pending'?'#2254d1':r.state==='restricted'?'#a15c00':'#b42318';c.delay.textContent=r.ms!=null?r.ms+' ms':'—';});}
+   if(page==='account'||page==='routing'){renderDirectory();}
+   if(page==='account')return pollEndpoint();
   });},2);
-  function backup(){var sections=[];uci.sections('routepilot',null,function(c){sections.push(c);});var b=new Blob([JSON.stringify({format:'routepilot-masque-v2',sections:sections},null,2)],{type:'application/json'}),u=URL.createObjectURL(b);E('a',{href:u,download:'routepilot-settings.json'}).click();URL.revokeObjectURL(u);}
-  function restore(file){if(!file||file.size>262144)return;file.text().then(function(raw){var b=JSON.parse(raw);if(b.format!=='routepilot-masque-v2'||!Array.isArray(b.sections)||b.sections.length>64)throw Error(_('备份格式无效'));var main=0,names={};b.sections.forEach(function(c){if(!/^[A-Za-z0-9_]{1,32}$/.test(c['.name']||'')||names[c['.name']]||['main','policy'].indexOf(c['.type'])<0)throw Error(_('配置节无效'));names[c['.name']]=1;if(c['.type']==='main'){if(c['.name']!=='main')throw Error(_('总配置名称无效'));main++;}Object.keys(c).forEach(function(k){if(k[0]!=='.'&&(!/^[a-z_][a-z0-9_]*$/.test(k)||!(typeof c[k]==='string'||Array.isArray(c[k])&&c[k].every(function(x){return typeof x==='string';}))))throw Error(_('配置字段无效'));});});if(main!==1)throw Error(_('缺少总配置'));uci.sections('routepilot',null,function(c){uci.remove('routepilot',c['.name']);});b.sections.forEach(function(c){var id=uci.add('routepilot',c['.type'],c['.name']);Object.keys(c).forEach(function(k){if(k[0]!=='.')uci.set('routepilot',id,k,c[k]);});uci.set('routepilot',id,'enabled','0');if(c['.type']==='main'){uci.set('routepilot',id,'preparing','0');uci.set('routepilot',id,'backend','masque');}});return uci.save().then(function(){return commitConfig('routepilot');});}).then(function(){notify(_('已导入并保存，插件保持关闭。刷新后查看设置；新路由器需重新登录。'));}).catch(function(e){notify(e.message,true);});}
-  var backupCard=E('div',{class:'cbi-section'},[E('h3',{},_('配置备份与迁移')),E('p',{},_('仅导出本插件的分流、DNS 等设置；不含 WARP 登录身份、Cloudflare API 令牌或备用节点凭据。导入后保持关闭并默认选主线路；登录和备用凭据需另行配置。')),E('button',{class:'btn',click:backup},_('导出配置')),E('hr'),E('label',{},[_('导入配置文件：'),E('input',{type:'file',accept:'.json',change:function(ev){restore(ev.target.files[0]);}})]),E('p',{},_('导入后保持关闭，不修改原 SSR 节点或分流。'))]);
-  function saveOrganizationOnly(){var org=organizationOption.formvalue('main');if(org==null)org=uci.get('routepilot','main','organization')||'';return fs.write('/var/run/routepilot/organization-input',JSON.stringify({organization:String(org).trim()}),384).then(function(){return command('warp-org-save');}).then(function(raw){var result=JSON.parse(raw);uci.set('routepilot','main','organization',result.organization);uci.set('routepilot','main','apply_nonce',result.nonce);committedOrganization=result.organization;delete wizardActions.org;updateWizard();return result;});}
+  function requestChecksum(text){
+   var bytes=new TextEncoder().encode(text),size=(bytes.length+72)&~63,padded=new Uint8Array(size);padded.set(bytes);padded[bytes.length]=128;new DataView(padded.buffer).setUint32(size-4,bytes.length*8);
+   var h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19],k=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+   function r(x,n){return x>>>n|x<<32-n;}var words=new Int32Array(64),view=new DataView(padded.buffer);
+   for(var off=0;off<size;off+=64){for(var i=0;i<16;i++)words[i]=view.getInt32(off+i*4);for(i=16;i<64;i++){var x=words[i-15],y=words[i-2];words[i]=(words[i-16]+(r(x,7)^r(x,18)^x>>>3)+words[i-7]+(r(y,17)^r(y,19)^y>>>10))|0;}
+    var a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],v=h[7];for(i=0;i<64;i++){var t=(v+(r(e,6)^r(e,11)^r(e,25))+((e&f)^(~e&g))+k[i]+words[i])|0,u=((r(a,2)^r(a,13)^r(a,22))+((a&b)^(a&c)^(b&c)))|0;v=g;g=f;f=e;e=d+t|0;d=c;c=b;b=a;a=t+u|0;}[a,b,c,d,e,f,g,v].forEach(function(value,n){h[n]=h[n]+value|0;});
+   }return h.map(function(value){return (value>>>0).toString(16).padStart(8,'0');}).join('');
+  }
+  function requestID(){if(!window.crypto||!window.crypto.getRandomValues)throw Error(_('浏览器不支持安全请求标识，请更新浏览器后重试'));var words=new Uint32Array(4);window.crypto.getRandomValues(words);return Array.prototype.map.call(words,function(v){return v.toString(16).padStart(8,'0');}).join('');}
+  function boundRequest(payload){var id=requestID(),text=JSON.stringify({request_id:id,payload:payload});return {id:id,text:text,token:id+':'+requestChecksum(text)};}
+  function backup(){return command('settings-export').then(function(raw){var b=new Blob([raw],{type:'application/json'}),u=URL.createObjectURL(b);E('a',{href:u,download:'routepilot-settings-v3.json'}).click();URL.revokeObjectURL(u);}).catch(function(e){notify(_('导出未完成：')+e.message,true);});}
+  function restore(file){
+   if(!file||file.size>262144){notify(_('备份文件过大或无效'),true);return Promise.resolve();}
+   var importRequest;return file.text().then(function(raw){var b=JSON.parse(raw);if(['routepilot-masque-v2','routepilot-masque-v3'].indexOf(b.format)<0)throw Error(_('备份格式无效'));importRequest=boundRequest(b);return fs.write('/var/run/routepilot/settings-import-input',importRequest.text,384);}).then(function(){return command('settings-import',importRequest.token);}).then(function(raw){var result=JSON.parse(raw);if(!result.imported||result.request_id!==importRequest.id)throw Error(_('未收到本次导入确认'));return uci.unload('routepilot');}).then(function(){return uci.load('routepilot');}).then(function(){notify(_('已导入并保持关闭。请刷新页面；入口偏好需核对后单独保存应用，登录和备用凭据需另行配置。'));}).catch(function(e){notify(_('导入未完成：')+e.message,true);});
+  }
+  var backupCard=E('div',{class:'cbi-section'},[E('h3',{},_('配置备份与迁移')),E('p',{},_('导出本插件的分流、DNS 和入口偏好；不含 WARP 登录身份、Cloudflare API 令牌或备用节点凭据。导入后保持关闭并默认选主线路；登录和备用凭据需另行配置。')),E('button',{class:'btn',click:backup},_('导出配置')),E('hr'),E('label',{},[_('导入配置文件：'),E('input',{type:'file',accept:'.json',change:function(ev){restore(ev.target.files[0]);}})]),E('p',{},_('导入后保持关闭，不修改原 SSR 节点或分流。'))]);
+  function saveOrganizationOnly(){var org=organizationOption.formvalue('main');if(org==null)org=uci.get('routepilot','main','organization')||'';return submitInput('organization-input','warp-org-save',{organization:String(org).trim()}).then(function(result){uci.set('routepilot','main','organization',result.organization);uci.set('routepilot','main','apply_nonce',result.nonce);committedOrganization=result.organization;delete wizardActions.org;updateWizard();return result;});}
   function countryName(code){return ({US:'美国',KR:'韩国',JP:'日本',SG:'新加坡',HK:'香港',TW:'台湾',DE:'德国',GB:'英国',CN:'中国',AU:'澳大利亚',CA:'加拿大'})[code]||code||_('未知');}
   var centerState=E('div',{role:'status','aria-live':'polite'}),centerCountry=E('span',{class:'rp-summary-tag',role:'status','aria-live':'polite'}),centerWarpAuth=E('span',{class:'rp-summary-tag'}),centerAPIAuth=E('span',{class:'rp-summary-tag'}),centerAuth=E('div',{class:'rp-auth-badges'},[centerWarpAuth,centerAPIAuth,centerCountry]),warpInfo=E('p',{role:'status','aria-live':'polite'});
   var centerReadBusy=false;
-  function observationCurrent(row,st){return row&&st&&row.state==='done'&&feedback.fresh(st,Date.now())&&st.state==='running'&&['runtime_id','generation','applied_nonce','exit','backend'].every(function(k){return row[k]===st[k];})&&Date.now()/1000-row.time>=-5&&Date.now()/1000-row.time<=300;}
+  function observationCurrent(row,st){return row&&st&&row.state==='done'&&feedback.fresh(st,Date.now())&&st.state==='running'&&['runtime_id','generation','applied_nonce','exit','backend','endpoint_generation'].every(function(k){return row[k]===st[k];})&&Date.now()/1000-row.time>=-5&&Date.now()/1000-row.time<=300;}
   function updateCenter(){
    var st=wizardStatus,fresh=feedback.fresh(st,Date.now()),running=fresh&&st&&st.state==='running';
-   centerState.textContent=running?((st.backend==='worker'?_('当前使用 Workers 备用'):_('当前使用 WARP 主线路'))+' · '+_('实际协议：')+(st.protocol||_('尚未确认'))+(st.protocol_warning?_('（上次确认）'):'')+' · '+_('出口：')+(st.backend==='worker'?(st.backup_name||_('Workers 备用')):directoryLabel(st.exit,catalog))+' · IP '+(st.exit_ip||'—')):!fresh?_('○ 状态过期，当前连接未确认'):st&&st.state==='disabled'?_('○ 已关闭'):st&&st.message||_('○ 尚无运行状态');
+   centerState.textContent=running?((st.backend==='worker'?_('当前使用 Workers 备用'):_('当前使用 WARP 主线路'))+' · '+_('实际协议：')+(st.protocol||_('尚未确认'))+(st.protocol_warning?_('（上次确认）'):'')+' · '+_('出口：')+(st.backend==='worker'?(st.backup_name||_('Workers 备用')):(catalog.available?directoryLabel(st.exit,catalog):String(st.exit||_('待确认'))))+' · IP '+(st.exit_ip||'—')):!fresh?_('○ 状态过期，当前连接未确认'):st&&st.state==='disabled'?_('○ 已关闭'):st&&st.message||_('○ 尚无运行状态');
    centerState.className=running?'rp-center-ok':'rp-help';
    var valid=observationCurrent(exitObservation,st);
    centerCountry.textContent=valid?_('本次观测出口地区：')+countryName(exitObservation.country)+' ('+exitObservation.country+')':exitObservation?_('○ 地区观测已过期或线路改变，可重新检测'):_('○ 出口地区尚未检测');
    var cfg=cloudState&&cloudState.configured!=null?cloudState:cloudMeta;
-   centerWarpAuth.textContent=catalog.available||registeredHere||running&&st.backend!=='worker'?_('✓ WARP 已注册'):_('○ WARP 注册待确认');
-   centerAPIAuth.textContent=cfg&&cfg.configured?_('✓ API 令牌已保存'):_('○ API 未保存');
+   centerWarpAuth.textContent=catalog.available||registeredHere||running&&st.backend!=='worker'?_('✓ WARP 已注册'):catalog.skipped?_('○ 本页未读取 WARP 注册状态'):_('○ WARP 注册待确认');
+   centerAPIAuth.textContent=cfg&&cfg.configured?_('✓ API 令牌已保存'):_('○ API 尚未读取');
    warpInfo.textContent=warpState&&warpState.state==='available'?_('读取到的客户端协议：')+warpState.protocol+' · '+({organization:_('组织策略'),local_policy:_('本机管理配置'),local:_('客户端设置'),mdm:_('本机管理文件'),routepilot:_('本路由器配置'),external_mdm:_('外部管理文件')}[warpState.source]||_('来源待确认'))+' · '+warpState.message:_('尚未读取到主线路协议信息；新安装先完成本组登录。');
    var labels={advanced:catalog.available?_('账户可读取'):_('账户待确认'),basic:running?_('已生效'):_('待确认'),devices:uci.get('routepilot','main','scope')==='lan'?_('当前按网络统一生效'):_('按设备设置'),dns:liveDNS&&feedback.dnsState(liveDNS,st,Date.now())==='running'?_('DNS 运行中'):_('DNS 待确认'),workers:running&&st.backend==='worker'?_('备用运行中'):backupNode&&backupNode.configured?_('已配置，未接管'):_('未配置')};
    Object.keys(centerGroupBadges||{}).forEach(function(k){centerGroupBadges[k].textContent=labels[k]||'';});
    centerRefresh.disabled=centerReadBusy;centerObserve.disabled=centerReadBusy||!running;
   }
-  function centerRead(action){centerReadBusy=true;updateCenter();return command(action).then(function(raw){var result=JSON.parse(raw);if(action==='warp-info')warpState=result;else exitObservation=result;}).catch(function(e){notify(e.message,true);}).finally(function(){centerReadBusy=false;updateCenter();});}
+  function centerRead(action){centerReadBusy=true;updateCenter();return command(action).then(function(raw){var result=JSON.parse(raw);if(!isCurrentView())return;if(action==='warp-info')warpState=result;else exitObservation=result;}).catch(function(e){notify(e.message,true);}).finally(function(){centerReadBusy=false;updateCenter();});}
   var centerRefresh=E('button',{class:'btn',click:function(){return centerRead('warp-info');}},_('刷新协议信息（只读）'));
   var centerObserve=E('button',{class:'btn',click:function(){return centerRead('exit-observe');}},_('检测实际出口国家 / 地区（不切换）'));
-  var regionFilter=E('select',{'aria-label':_('出口地区筛选（账户名称提示）')},[E('option',{value:''},_('全部账户出口'))]);
-  function activeCatalog(){if(!center||!regionFilter||!regionFilter.value)return catalog;var region=regionFilter.value;return Object.assign({},catalog,{filtered:true,networks:(catalog.networks||[]).filter(function(n){return region==='unknown'?!n.country_hint:n.country_hint===region;})});}
-  function updateRegions(){var codes=Array.from(new Set((catalog.networks||[]).map(function(n){return n.country_hint;}).filter(Boolean))).sort(),old=regionFilter.value||'';regionFilter.replaceChildren(E('option',{value:''},_('全部账户出口')));codes.forEach(function(code){regionFilter.appendChild(E('option',{value:code},countryName(code)+_(' · 名称提示')));});regionFilter.appendChild(E('option',{value:'unknown'},_('名称未标明地区')));regionFilter.value=codes.indexOf(old)>=0||old==='unknown'?old:'';}
-  regionFilter.addEventListener('change',function(){return updateExitChoices();});
   var centerGroups={},centerGroupBadges={};
   workerInventory=E('section',{class:'rp-worker-inventory','aria-label':_('Workers 节点与部署记录')});
   function openWorkerStage(key){Object.keys(workerStages).forEach(function(k){workerStages[k].open=k===key;workerStageOpen[k]=k===key;});}
@@ -656,30 +683,95 @@ var exitName=v.backend==='worker'?(v.backup_name||_('Workers 备用')):directory
    var key=cloudRunning?'deploy':relayBusy||workerOperationBusy('relay')||relayTaskRunning()?'relay':scanRunning?'scan':workerFlow.testing||tested?'use':!configured||!imported&&!(deployed&&node.sni===cloudHost.value)?'deploy':!relayApplied?'relay':!scanned?'scan':scanApplied?'use':'scan';
    openWorkerStage(key);
   }
-  function defaultCenterOpen(id){var hash=(window.location.hash||'').replace('#rp-center-','');if(hash)return id===hash;if(!catalog.available&&uci.get('routepilot','main','enabled')!=='1')return id==='advanced';return id==='basic'||id==='devices'&&uci.get('routepilot','main','scope')==='devices';}
+  function defaultCenterOpen(id){return id===pageGroup;}
   function centerGroup(id,title,description,children){
    var box=E('details',{class:'rp-center-group',id:'rp-center-'+id,open:Object.prototype.hasOwnProperty.call(centerOpen,id)?centerOpen[id]:defaultCenterOpen(id)},[E('summary',{},[E('span',{},title),centerGroupBadges[id]=E('span',{class:'rp-group-state'})]),E('div',{class:'rp-center-body'},[E('p',{class:'rp-help'},description)].concat(children.filter(Boolean)))]);
    box.open=Object.prototype.hasOwnProperty.call(centerOpen,id)?centerOpen[id]:defaultCenterOpen(id);centerGroups[id]=box;return box;
   }
+  var endpointLoaded=false,endpointBusy=false,endpointDirty=false,endpointView=null,endpointTracking=null,recoveryTracking=null;
+  var endpointMode=E('select',{class:'cbi-input-select'},[E('option',{value:'auto'},_('默认：官方自动')),E('option',{value:'candidate'},_('固定：从官方候选选择')),E('option',{value:'custom'},_('手写：自定义 IPv4 入口'))]);
+  var endpointAddress=E('input',{class:'cbi-input-text',type:'text',placeholder:'IPv4:端口'});
+  var endpointHours=E('select',{class:'cbi-input-select'},[0,6,12,24,72,168].map(function(h){return E('option',{value:String(h)},h?String(h)+_(' 小时'):_('关闭定期读取'));}));
+  var endpointCandidates=E('select',{class:'cbi-input-select'},[E('option',{value:''},_('读取后选择候选'))]);
+  var endpointResult=E('p',{'aria-live':'polite'},_('展开后读取入口设置。'));
+  var endpointDetails=E('div',{}),endpointModeHelp=E('p',{class:'rp-help','aria-live':'polite'});
+  var endpointCandidateField=E('label',{class:'rp-cloud-field'},[E('span',{},_('固定候选入口（尚未逐项测速）')),endpointCandidates]);
+  var endpointCustomField=E('label',{class:'rp-cloud-field'},[E('span',{},_('手写 IPv4:端口（自定义未经检测）')),endpointAddress]);
+  function updateEndpointMode(){
+   var mode=endpointMode.value;
+   endpointCandidateField.hidden=mode!=='candidate';endpointCandidates.disabled=mode!=='candidate';
+   endpointCustomField.hidden=mode!=='custom';endpointAddress.disabled=mode!=='custom';
+   endpointModeHelp.textContent=mode==='candidate'?_('选择官方客户端本地候选中的一个 IPv4 入口。应用并检测后固定使用；失败将尝试恢复并验证原入口。定期同步候选不会自动更换固定入口。'):mode==='custom'?_('填写公网 IPv4:端口，例如 162.159.197.2:8443。应用并检测后固定使用；自定义地址不保证可用，失败将尝试恢复并验证原入口。'):_('无需选择或填写 IP。应用并检测后清除现有固定入口，由官方客户端管理入口；失败将尝试恢复并验证原设置。');
+   endpointModeHelp.textContent+=_(' 仅切换选项不会生效；点击“应用并检测”会短暂重连，核对隧道连接和原预期出口，不代表测速或手机端验收。');
+  }
+  [endpointMode,endpointAddress,endpointHours].forEach(function(el){el.addEventListener('change',function(){endpointDirty=true;updateEndpointMode();});});
+  endpointAddress.addEventListener('input',function(){endpointDirty=true;});
+  endpointCandidates.addEventListener('change',function(){endpointDirty=true;updateEndpointMode();});
+  function showEndpoint(v){
+   endpointView=v;
+   var restoreFields=!endpointLoaded||!endpointDirty,preferred=restoreFields?(v.settings.mode==='manual'?v.settings.address:v.settings.mode==='preserve'&&v.override_observed?v.configured_override:''):endpointCandidates.value;
+   if(restoreFields){endpointMode.value=preferred?((v.candidates&&v.candidates.entries||[]).indexOf(preferred)>=0?'candidate':'custom'):'auto';endpointAddress.value=preferred||'';endpointHours.value=String(v.settings.hours);}
+   endpointLoaded=true;updateEndpointMode();
+   var c=v.candidates||{},r=v.collection||{},a=v.application||{},available=v.capability&&v.capability.supported;
+   endpointCandidates.replaceChildren(E('option',{value:''},_('选择候选（尚未逐项测速）')));
+   (c.entries||[]).forEach(function(addr){endpointCandidates.appendChild(E('option',{value:addr,disabled:addr.charAt(0)==='['?true:null},addr+(addr.charAt(0)==='['?_(' · 当前环境不支持 IPv6'):'')));});
+   endpointCandidates.value=(c.entries||[]).indexOf(preferred)>=0?preferred:'';
+   endpointDetails.replaceChildren(E('p',{},_('客户端配置的固定入口：')+(v.override_observed?(v.configured_override||_('未固定，交给官方客户端')):_('暂不能确认'))),E('p',{},_('这不是当前连接实际远端的抓包观测。手动自定义地址未经检测，不保证可用。')),E('p',{},_('最近读取：')+(r.checked_at?new Date(r.checked_at*1000).toLocaleString():_('尚未读取'))+' · '+(r.message||_('默认每24小时读取客户端本地候选'))),E('p',{},_('最近成功：')+(c.collected_at?new Date(c.collected_at*1000).toLocaleString():_('无'))+' · '+_('源配置时间：')+(c.source_mtime?new Date(c.source_mtime*1000).toLocaleString():_('未知'))),E('p',{},available?_('当前客户端支持入口 set/reset。'):_('客户端能力尚未确认，暂不能应用入口。')));
+   var message=v.settings.staged?_('导入的入口偏好尚未应用，请核对后单独保存。'):v.pending?((wizardStatus&&wizardStatus.state==='disabled')?_('设置已保存，等待主线路开启后由后台应用。'):_('设置已保存，等待后台处理本次请求…')):a.state==='applied'?_('入口设置已确认。')+(a.connected?_(' 已完成连接检测；'):'')+(a.exit_verified?_('原预期出口验证通过。'):_('请另行检测实际出口。')):a.state==='rejected'?_('应用前校验未通过；当前连接未改变，请核对能力和原出口基线。'):a.state==='verifying'?_('正在连接并验证原出口…'):a.state==='rolling_back'?_('应用未通过，正在恢复并验证原入口…'):a.state==='unknown'?_('恢复结果未知，可能直连；请人工检查，不会继续自动切换。'):a.state==='failed'?_('入口应用失败；')+(a.rollback_confirmed?_('已恢复原入口设置。'):_('恢复未确认，请手动检查。')):a.state==='applying'?_('入口事务正在处理或结果未确认；请读取状态，必要时人工核对。'):_('保持现有入口。');
+   if(endpointTracking){
+    if(v.settings.revision!==endpointTracking.revision){message=_('本次请求已被另一个设置请求替代，请核对当前结果。');endpointTracking=null;}
+    else if(a.revision===endpointTracking.revision&&['applied','preserved','failed','rejected','unknown'].indexOf(a.state)>=0)endpointTracking=null;
+    else if(Date.now()-endpointTracking.started>120000){message=_('等待超过120秒，结果尚未确认；请读取当前状态，勿将保存成功当成已应用。');endpointTracking=null;}
+   }
+   var recovery=v.recovery_block||{};
+   if(recovery.new_request_block&&recovery.terminal){message=_('入口请求受阻，未保存或未应用：')+recovery.code+' · '+recovery.reason;endpointTracking=null;}
+   else if(recovery.new_request_block)message+=' · '+recovery.reason;
+   endpointSave.disabled=endpointBusy||!!recovery.new_request_block;
+   if(v.warnings&&v.warnings.length)message+=' · '+v.warnings.join('；');
+   if(v.warning&&v.warning.message&&v.pending)message+=' · '+v.warning.message;
+   if(recoveryTracking&&(!v.recovery_result||v.recovery_result.request_id!==recoveryTracking.id))message+=' · '+_('本次受控恢复已提交，等待后台验证结果');else if(v.recovery_result&&v.recovery_result.message){message+=' · '+_('上次受控恢复：')+when(v.recovery_result.time)+' · '+v.recovery_result.message;if(recoveryTracking&&v.recovery_result.request_id===recoveryTracking.id)recoveryTracking=null;}
+   endpointRecover.disabled=endpointBusy||!(v.recovery_offer&&v.recovery_offer.available);
+   endpointRecover.hidden=!recovery.startup_pause;
+   endpointResult.textContent=message;
+  }
+  function endpointAction(action,recoveryPayload){
+   if(endpointBusy||action==='endpoint-save'&&endpointView&&endpointView.recovery_block&&endpointView.recovery_block.new_request_block)return Promise.resolve();endpointBusy=true;endpointRead.disabled=true;endpointRefresh.disabled=true;endpointSave.disabled=true;endpointSchedule.disabled=true;endpointRecover.disabled=true;
+   endpointResult.textContent=action==='endpoint-save'?_('正在提交，应用可能短暂重连…'):_('正在读取…');
+   var entryRequest,auxMessage=null,entryPayload={mode:endpointMode.value==='auto'?'auto':'manual',address:endpointMode.value==='candidate'?endpointCandidates.value:endpointMode.value==='custom'?endpointAddress.value.trim():'',hours:Number(endpointHours.value),recovery:false};return Promise.resolve().then(function(){if(['endpoint-save','endpoint-schedule','endpoint-recover'].indexOf(action)>=0){if(action==='endpoint-save'&&entryPayload.mode==='manual'&&!entryPayload.address)throw Error(_('请先选择候选入口或填写 IPv4:端口'));entryRequest=boundRequest(action==='endpoint-schedule'?{hours:Number(endpointHours.value)}:action==='endpoint-recover'?recoveryPayload:entryPayload);return fs.write('/var/run/routepilot/'+(action==='endpoint-schedule'?'endpoint-schedule-input':action==='endpoint-recover'?'endpoint-recover-input':'endpoint-input'),entryRequest.text,384);}}).then(function(){return command(action,entryRequest&&entryRequest.token);}).then(function(raw){if(entryRequest){var saved=JSON.parse(raw);if(saved.request_id!==entryRequest.id)throw Error(_('未收到本次入口请求确认'));if(action==='endpoint-save'){endpointDirty=false;endpointTracking={revision:saved.settings.revision,started:Date.now()};}if(action==='endpoint-recover')recoveryTracking={id:entryRequest.id,started:Date.now()};if(action==='endpoint-schedule')auxMessage=saved.message;}return command('endpoint-info');}).then(function(raw){showEndpoint(JSON.parse(raw));if(auxMessage)endpointResult.textContent+=' · '+auxMessage;}).catch(function(e){var failed=_('未完成：')+e.message;endpointResult.textContent=failed;if(action==='endpoint-save')return command('endpoint-info').then(function(raw){showEndpoint(JSON.parse(raw));if(!(endpointView.recovery_block&&endpointView.recovery_block.new_request_block))endpointResult.textContent=failed;}).catch(function(){endpointResult.textContent=failed;});}).finally(function(){endpointBusy=false;endpointRead.disabled=false;endpointRefresh.disabled=false;endpointSchedule.disabled=false;endpointRecover.disabled=!(endpointView&&endpointView.recovery_offer&&endpointView.recovery_offer.available);endpointSave.disabled=!!(endpointView&&endpointView.recovery_block&&endpointView.recovery_block.new_request_block);});
+  }
+  function pollEndpoint(){if(endpointTracking&&Date.now()-endpointTracking.started>120000){endpointTracking=null;endpointResult.textContent=_('等待超过120秒，结果尚未确认；请读取当前状态，勿将保存成功当成已应用。');return Promise.resolve();}if(recoveryTracking&&Date.now()-recoveryTracking.started>120000){recoveryTracking=null;endpointResult.textContent=_('恢复请求等待超时，结果尚未确认；请读取当前状态。');}if((endpointTracking||recoveryTracking)&&!endpointBusy)return endpointAction('endpoint-info');return Promise.resolve();}
+  var endpointRead=E('button',{class:'btn',click:function(){return endpointAction('endpoint-info');}},_('读取当前设置 / 应用结果'));
+  var endpointRefresh=E('button',{class:'btn',click:function(){return endpointAction('endpoint-refresh');}},_('读取客户端最新本地候选（不切换）'));
+  var endpointSave=E('button',{class:'btn cbi-button-action',click:function(){return endpointAction('endpoint-save');}},_('应用并检测（可能重连）'));
+  var endpointSchedule=E('button',{class:'btn',click:function(){return endpointAction('endpoint-schedule');}},_('只保存同步间隔（不重连）'));
+  var endpointRecover=E('button',{class:'btn',hidden:true,click:function(){
+   var offer=endpointView&&endpointView.recovery_offer;if(!offer||!offer.available)return;
+   var confirm=E('input',{class:'cbi-input-text',placeholder:'RESTORE'});
+   ui.showModal(_('受控恢复原入口'),[E('p',{},_('仅恢复原事务入口并验证原出口，可能短暂直连。证据或验证不一致时仍保持阻断。总开关关闭时也会临时启动客户端验证，完成后仍保持关闭，不开启设备接管。请输入 RESTORE 确认。')),confirm,E('button',{class:'btn',click:function(){if(confirm.value!=='RESTORE'){notify(_('请输入 RESTORE'),true);return;}ui.hideModal();return endpointAction('endpoint-recover',{confirm:'RESTORE',revision:offer.revision,context:offer.context});}},_('确认恢复并验证')),E('button',{class:'btn',click:function(){ui.hideModal();}},_('取消'))]);
+  }},_('受控恢复原入口并验证'));
+  var endpointCard=E('details',{class:'rp-guide-step rp-endpoint-card'},[E('summary',{},_('主线路入口选择与定期读取')),E('p',{class:'rp-help'},_('候选来自官方客户端已下载的配置；定期读取不会向云端强制拉取、不测速、不切换。官方自动模式由客户端管理入口。故障自动切入口尚未启用。入口变更将短暂撤回接管并允许宽带直连，成功后重新验证原出口。')),endpointDetails,E('label',{class:'rp-cloud-field'},[E('span',{},_('待应用入口方式（当前配置见上方）')),endpointMode]),endpointModeHelp,endpointCandidateField,endpointCustomField,E('label',{class:'rp-cloud-field'},[E('span',{},_('官方客户端本地候选同步间隔')),endpointHours]),E('p',{class:'rp-help'},_('三种方式均保留定期同步：只读取官方客户端已经下载的候选，不主动向云端拉取、不测速、不自动改换固定入口。')),E('div',{class:'rp-summary-actions'},[endpointRead,endpointRefresh,endpointSchedule,endpointSave,endpointRecover]),endpointResult]);
+  updateEndpointMode();
+  endpointCard.addEventListener('toggle',function(){if(endpointCard.open&&!endpointLoaded)endpointAction('endpoint-info');});
   function buildCenter(node,force){
    if(centerComposed===node&&!force)return [node];
    function fields(group){return E('div',{},centerFields[group].map(function(o){return node.querySelector('[id="cbi-routepilot-main-'+o.option+'"]');}).filter(Boolean));}
    var guide=node.querySelector('.rp-guide'),protocol=node.querySelector('[id="cbi-routepilot-main-warp_protocol"]');
-   var top=E('section',{class:'cbi-section rp-center-summary'},[centerState,E('div',{class:'rp-summary-bottom'},[centerAuth,E('div',{class:'rp-summary-actions'},[centerRefresh,centerObserve])])]);
-   updateRegions();updateCenter();
-   var groups=[top,
-    centerGroup('advanced',_('1. 主线路账户与连接协议'),_('沿用已注册账户。MASQUE 与 WireGuard 都使用官方客户端；只有保存并应用所选协议后才重连，本轮保持当前设置。'),[warpInfo,protocol,guide]),
-    centerGroup('basic',_('2. 账户出口、国家 / 地区与接管范围'),_('要固定某地区，选择已部署的对应出口，再检测实际出口。默认 WARP 和 Workers 不是任意国家选择器，优选 IP 只改变入口。地区筛选来自账户名称，仅辅助查找，不是实测定位，不会自动选择出口。'),[E('label',{class:'rp-cloud-field'},[E('span',{},_('按出口名称中的地区筛选')),regionFilter]),fields('basic')]),
-    centerGroup('devices',_('3. 设备分流'),_('保留现有设备表；局域网模式按上面的范围设置，设备表只有按设备模式生效。'),[centerDeviceNode]),
-    centerGroup('dns',_('4. DNS 与联网检测'),_('DNS 设置和真实联网结果在一起；缓存清理、只读检测不会保存其他表单。历史结果失效时会明确标记。'),[fields('dns'),dnsCacheCard,dnsTestCard,testCard,connectionHistory,E('details',{class:'rp-guide-step'},[E('summary',{},_('接收队列与丢包观测')),receiveCard])]),
-    centerGroup('workers',_('5. Workers 备用与 Cloudflare API 授权'),_('在路由器读取授权账户和域名、创建 Worker、绑定子域名、管理 PROXYIP、优选入口并独立检测。备用仍需手动启用；保留现有主线路。'),[workerInventory,E('p',{class:'rp-help'},E('a',{href:'#',click:function(ev){if(ev&&ev.preventDefault)ev.preventDefault();workerPinned=true;openWorkerStage('use');}},_('已有节点？保留原入口，直接到④独立检测 →'))),workerStage('deploy',_('① 创建部署与 API 授权'),cloudCard,!(cloudMeta&&cloudMeta.configured)),workerStage('relay',_('② PROXYIP 主用与备用'),relayCard,false),workerStage('scan',_('③ 优选 Cloudflare 入口'),scanCard,false),workerStage('use',_('④ 独立测试与手动启用'),workerBackupCard,!!(cloudMeta&&cloudMeta.configured))])];
-   groups.push(E('p',{class:'rp-save-hint'},_('页面底部“保存并应用”提交本地设置；读取、检测和清缓存不会提交编辑。云端部署和备用节点按钮分别立即执行其注明的操作。')));node.replaceChildren.apply(node,groups);centerComposed=node;updateCenter();updateWorkerProgress();updateWorkerFlow();return [node];
+   var controls=page==='account'?[centerRefresh,centerObserve]:[centerObserve];
+   var top=E('section',{class:'cbi-section rp-center-summary'},[centerState,E('div',{class:'rp-summary-bottom'},[page==='workers'?centerAuth:E('div',{class:'rp-auth-badges'},[centerWarpAuth,centerCountry]),E('div',{class:'rp-summary-actions'},controls)])]);
+   updateCenter();
+   var groups=[E('nav',{class:'rp-section-nav','aria-label':_('Cloudflare 设置页面')},pages.filter(function(p){return sectionGroups[p[0]];}).map(function(p){return E('a',{class:'btn',href:base+'/cloudflare/'+p[0],'aria-current':p[0]===page?'page':null},p[1]);})),top];
+   if(pageGroup==='advanced')groups.push(centerGroup('advanced',_('1. 主线路账户与连接协议'),_('沿用已注册账户。MASQUE 与 WireGuard 都使用官方客户端；只有保存并应用所选协议后才重连，本轮保持当前设置。'),[warpInfo,protocol,guide,endpointCard]));
+   if(pageGroup==='basic')groups.push(centerGroup('basic',_('2. 账户出口、国家 / 地区与接管范围'),_('要固定某地区，选择已部署的对应出口，再检测实际出口。默认 WARP 和 Workers 不是任意国家选择器，优选 IP 只改变入口。出口名称不代表实际地区，可使用上方实际出口检测。'),[fields('basic')]));
+   if(pageGroup==='devices')groups.push(centerGroup('devices',_('3. 设备分流'),_('保留现有设备表；接管范围在“出口与分流”页设置，设备表只有按设备模式生效。'),[centerDeviceNode]));
+   if(pageGroup==='dns')groups.push(centerGroup('dns',_('4. DNS 与联网检测'),_('DNS 设置和真实联网结果在一起；缓存清理、只读检测不会保存其他表单。历史结果失效时会明确标记。'),[fields('dns'),dnsCacheCard,dnsTestCard,testCard,connectionHistory,E('details',{class:'rp-guide-step'},[E('summary',{},_('接收队列与丢包观测')),receiveCard])]));
+   if(pageGroup==='workers')groups.push(centerGroup('workers',_('5. Workers 备用与 Cloudflare API 授权'),_('在路由器读取授权账户和域名、创建 Worker、绑定子域名、管理 PROXYIP、优选入口并独立检测。备用仍需手动启用；保留现有主线路。'),[workerInventory,E('p',{class:'rp-help'},E('a',{href:'#',click:function(ev){if(ev&&ev.preventDefault)ev.preventDefault();workerPinned=true;openWorkerStage('use');}},_('已有节点？保留原入口，直接到④独立检测 →'))),workerStage('deploy',_('① 创建部署与 API 授权'),cloudCard,!(cloudMeta&&cloudMeta.configured)),workerStage('relay',_('② PROXYIP 主用与备用'),relayCard,false),workerStage('scan',_('③ 优选 Cloudflare 入口'),scanCard,false),workerStage('use',_('④ 独立测试与手动启用'),workerBackupCard,!!(cloudMeta&&cloudMeta.configured))]));
+   groups.push(E('p',{class:'rp-save-hint'},page==='workers'?_('云端部署和备用节点按钮分别立即执行其注明的操作；读取与检测不会启用备用。'):_('页面底部“保存并应用”只提交本页设置；读取、检测和清缓存不会提交编辑。')));node.replaceChildren.apply(node,groups);centerComposed=node;updateCenter();if(page==='workers'){updateWorkerProgress();updateWorkerFlow();}return [node];
   }
   if(page==='rules'&&typeof m.renderContents==='function'){var renderRules=m.renderContents.bind(m);m.renderContents=function(){return renderRules.apply(null,arguments).then(function(node){var fields=['china_url','china_domains_url','gfw_url','whitelist_url','update_hours'].map(function(k){return node.querySelector('[id="cbi-routepilot-main-'+k+'"]');}).filter(Boolean);if(fields.length)node.appendChild(E('details',{class:'rp-stat-details'},[E('summary',{},_('规则来源与更新间隔（高级）')),E('div',{},fields)]));return node;});};}
   if(center&&typeof m.renderContents==='function'){var renderMap=m.renderContents.bind(m);m.renderContents=function(){Object.keys(centerGroups).forEach(function(id){centerOpen[id]=centerGroups[id].open;});return renderMap.apply(null,arguments).then(function(node){buildCenter(node,true);return node;});};}
 
-  var content=page==='overview'?[overviewHero,trafficCard,nodeCard,quickCard,connectionHistory,versionInfo]:page==='advanced'?[statusCard]:page==='rules'?[rulesCard]:page==='dns'?[]:page==='backup'?[backupCard]:page==='workers'?[cloudCard,relayCard,scanCard,workerBackupCard]:[];
-  return (formPage?m.render():Promise.resolve(null)).then(function(node){if(center){content=buildCenter(node);}else if(node){var title=node.querySelector('h2');if(title)title.remove();var intro=node.querySelector('.cbi-map-descr');if(intro)intro.remove();if(page==='dns')content=[node,dnsCacheCard,dnsTestCard,testCard,E('details',{class:'rp-guide-step'},[E('summary',{},_('高级诊断：接收队列与丢包')),receiveCard])];else if(page==='basic')content=[node,E('section',{class:'cbi-section'},[E('h3',{},_('另一种连接方式')),E('a',{class:'btn',href:base+'/cloudflare#rp-center-workers'},_('打开 Cloudflare 备用线路 →'))])];else content.push(node);}return E('div',{class:'rp-layout','data-page':page},[E('link',{rel:'stylesheet',href:L.resource('routepilot/style_5539f87b8a7e.css')}),E('div',{class:'rp-header'},[E('span',{class:'rp-brand'},'RoutePilot'),E('h2',{},pageInfo[1]),E('p',{class:'rp-caption'},pageInfo[2])]),E('div',{class:'rp-page-content'},content)]);});
+  var content=page==='overview'?[overviewHero,trafficCard,nodeCard,quickCard,connectionHistory,versionInfo]:page==='rules'?[rulesCard]:page==='backup'?[backupCard]:[];
+  return (center||formPage?m.render():Promise.resolve(null)).then(function(node){if(center){content=buildCenter(node);}else if(node){var title=node.querySelector('h2');if(title)title.remove();var intro=node.querySelector('.cbi-map-descr');if(intro)intro.remove();content.push(node);}if(['overview','account','routing'].includes(page))Promise.resolve().then(function(){if(isCurrentView())return refreshDirectory();}).catch(function(){});if(page==='account')Promise.resolve().then(function(){if(isCurrentView())return centerRead('warp-info');}).catch(function(){});return E('div',{class:'rp-layout','data-page':page},[E('link',{rel:'stylesheet',href:L.resource('routepilot/style_8325ca4c2af3.css')}),E('div',{class:'rp-header'},[E('span',{class:'rp-brand'},'RoutePilot'),E('h2',{},pageInfo[1]),E('p',{class:'rp-caption'},pageInfo[2])]),E('div',{class:'rp-page-content'},content)]);});
  },
  handleSaveApply:function(){return this.applySettings();},
  handleReset:null

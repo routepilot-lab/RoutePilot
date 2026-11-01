@@ -93,8 +93,8 @@ body:has(.rp-layout) #tabmenu a:focus-visible{outline:3px solid #2554cf!importan
 .rp-layout [data-tone=good] .rp-status-badge{background:#d8f1e4;color:#086343}
 .rp-layout [data-tone=bad] .rp-status-badge{background:#ffe2dc;color:#a42319}
 .rp-layout [data-tone=warn] .rp-status-badge{background:#fff0cb;color:#7d4a00}
-.rp-layout .rp-power-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-top:1px solid #dbe6e1;padding-top:15px;margin-top:16px}
-.rp-layout .rp-power-row p{font-size:.9em;flex:1 1 260px;color:#475467;margin:0}
+
+
 .rp-layout .rp-data-note{padding:5px 9px;border-radius:8px;background:#fff6df;color:#734600;font-size:.9em;border:1px solid #efd8a4}
 .rp-layout .rp-metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
 .rp-layout .rp-metric-card{margin:0!important;background:#f7f9fe;box-shadow:none;padding:12px!important}
@@ -116,16 +116,16 @@ body:has(.rp-layout) #tabmenu a:focus-visible{outline:3px solid #2554cf!importan
 .rp-layout .rp-no-data{position:absolute;inset:40% 0;color:#667085}
 .rp-layout .rp-day-label{font-size:.86em;color:#475467;white-space:nowrap}
 .rp-layout .rp-legend-proxy{color:#2348aa;margin-right:16px}.rp-layout .rp-legend-direct{color:#096d5b}
-.rp-layout .rp-exit-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid #eaecf0;overflow-wrap:anywhere}
-.rp-layout .rp-exit-row strong{font-size:1em;font-weight:550}.rp-layout .rp-exit-row span{font-size:.9em}
-.rp-layout .rp-success{color:#087443}.rp-layout .rp-muted{color:#475467}
+
+
+
 .rp-layout .rp-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .rp-layout a.rp-quick-tile{display:flex;align-items:center;gap:12px;border:1px solid #dce3ed;border-radius:9px;padding:12px;min-height:64px;color:#1d2939;text-decoration:none!important;transition:background .15s}
 .rp-layout a.rp-quick-tile:hover{background:#f2f6ff;border-color:#a5b9ed}
 .rp-layout .rp-quick-tile strong{display:block;font-size:1em;font-weight:600}.rp-layout .rp-quick-tile small{display:block;font-size:.9em;line-height:1.6;color:#475467;margin-top:4px}
 .rp-layout .rp-quick-icon{font-size:1.6em;color:#2554cf;width:32px;text-align:center;flex-shrink:0}
 .rp-layout [data-stale=true] .rp-metric-number{color:#667085}
-@media(max-width:700px){.rp-layout .rp-metric-grid,.rp-layout .rp-quick-grid{grid-template-columns:1fr}.rp-layout .rp-week-chart{gap:4px}.rp-layout .rp-day-number{font-size:.85em;min-height:32px}.rp-layout .rp-day-label{font-size:.85em}.rp-layout .rp-metric-number{font-size:1.8em}.rp-layout .rp-metric-card{padding:15px!important}.rp-layout a.rp-quick-tile{padding:13px}.rp-layout .rp-power-row{align-items:flex-start}}
+@media(max-width:700px){.rp-layout .rp-metric-grid,.rp-layout .rp-quick-grid{grid-template-columns:1fr}.rp-layout .rp-week-chart{gap:4px}.rp-layout .rp-day-number{font-size:.85em;min-height:32px}.rp-layout .rp-day-label{font-size:.85em}.rp-layout .rp-metric-number{font-size:1.8em}.rp-layout .rp-metric-card{padding:15px!important}.rp-layout a.rp-quick-tile{padding:13px}}
 
 .rp-layout .rp-bar-proxy{background:repeating-linear-gradient(135deg,#315bce 0,#315bce 5px,#5c7edd 5px,#5c7edd 8px)}
 .rp-layout .rp-bar-direct{background:repeating-linear-gradient(135deg,#128573 0,#128573 5px,#3e9f90 5px,#3e9f90 8px)}
@@ -203,3 +203,8 @@ body:has(.rp-layout) #tabmenu a:focus-visible{outline:3px solid #2554cf!importan
 @media(max-width:700px){.rp-layout .rp-job-steps{grid-template-columns:1fr}.rp-layout .rp-worker-inventory{padding:12px}}
 
 .rp-layout .rp-worker-activity{border-left:4px solid #98a2b3;padding:8px 12px;margin:12px 0;background:#fff;overflow-wrap:anywhere}.rp-layout .rp-worker-activity[data-state=success]{border-left-color:#12805c}.rp-layout .rp-worker-activity[data-state=busy]{border-left-color:#2554cf}.rp-layout .rp-worker-activity[data-state=error]{border-left-color:#b42318}.rp-layout .rp-worker-activity[data-state=waiting],.rp-layout .rp-worker-activity[data-state=warning],.rp-layout .rp-worker-activity[data-state=unknown]{border-left-color:#a15c00}
+
+/* Keep endpoint selectors compact on desktop and within narrow screens. */
+.rp-layout .rp-endpoint-card .rp-cloud-field{width:100%;max-width:32rem;margin:12px 0}.rp-layout .rp-endpoint-card .rp-cloud-field select,.rp-layout .rp-endpoint-card .rp-cloud-field input{box-sizing:border-box;width:100%;max-width:100%;min-width:0}
+
+.rp-layout .rp-section-nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.rp-layout .rp-section-nav a[aria-current=page]{background:#2554cf;color:#fff;border-color:#2554cf}

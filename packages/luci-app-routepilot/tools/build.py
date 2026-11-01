@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import io
 import json
+import re
 import sys
 from pathlib import Path
 import tarfile
@@ -15,7 +16,8 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from asset_versions import validate
-VERSION = '0.2.24-4'
+_makefile=(ROOT/'Makefile').read_text()
+VERSION = re.search(r'^PKG_VERSION:=(.+)$',_makefile,re.M)[1]+'-'+re.search(r'^PKG_RELEASE:=(.+)$',_makefile,re.M)[1]
 DEPENDENCIES = ('luci-base, python3-light, python3-urllib, python3-logging, '
                 'python3-ctypes, python3-openssl, python3-uuid, ip-full, nftables-json, '
                 'kmod-tun, kmod-veth, conntrack, curl, ca-bundle')

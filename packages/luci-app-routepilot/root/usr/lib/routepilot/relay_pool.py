@@ -89,17 +89,14 @@ def idle():
     if read_config()['main'].get('backend','masque')=='worker':raise RelayError('请先切回主线路，再修改备用候选顺序')
 
 
-def save():
-    with w.guard():
-        try:
-            idle()
-            if INPUT.stat().st_size>16384:raise RelayError('候选输入过大')
-            data=json.loads(INPUT.read_text())
-            if not isinstance(data,dict) or set(data)!={'candidates'}:raise RelayError('候选输入格式无效')
-            rows=spec(data['candidates']);PRIVATE.mkdir(parents=True,exist_ok=True,mode=0o700);PRIVATE.chmod(0o700)
-            atomic(POOL,json.dumps(dict(candidates=rows,saved_at=time.time()),ensure_ascii=False))
-            return dict(saved=True,candidates=rows,order_hash=hashlib.sha256(canonical(rows).encode()).hexdigest(),message='候选及顺序已保存；尚未应用到备用线路')
-        finally:INPUT.unlink(missing_ok=True)
+def save(request_id=None):
+    from request_input import claim_request
+    with w.guard(), claim_request(INPUT,request_id,16384) as data:
+        idle()
+        if not isinstance(data,dict) or set(data)!={'candidates'}:raise RelayError('候选输入格式无效')
+        rows=spec(data['candidates']);PRIVATE.mkdir(parents=True,exist_ok=True,mode=0o700);PRIVATE.chmod(0o700)
+        atomic(POOL,json.dumps(dict(candidates=rows,saved_at=time.time()),ensure_ascii=False))
+        return dict(saved=True,request_id=request_id.split(':')[0],candidates=rows,order_hash=hashlib.sha256(canonical(rows).encode()).hexdigest(),message='候选及顺序已保存；尚未应用到备用线路')
 
 
 def with_pool(node,endpoints,force=False):

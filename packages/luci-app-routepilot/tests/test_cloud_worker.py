@@ -1,3 +1,4 @@
+from input_fixture import stage
 import contextlib,io,json,tempfile,unittest,sys,hashlib
 from pathlib import Path
 from unittest.mock import patch
@@ -62,10 +63,10 @@ class CloudTest(unittest.TestCase):
   c.atomic(c.SETTINGS,json.dumps(CFG));c.public(dict(state='ready',identity=c.identity(CFG)))
   with patch.object(c,'api',side_effect=self.fake_api):c.verify(CFG)
   before=c.STATE.read_bytes();c.INPUT.write_text(json.dumps({**CFG,'token':''}))
-  with patch.object(w,'guard',return_value=contextlib.nullcontext()):c.save()
+  with patch.object(w,'guard',return_value=contextlib.nullcontext()):c.save(stage(c.INPUT))
   self.assertEqual(c.STATE.read_bytes(),before);self.assertIsNotNone(c.metadata()['directory'])
   c.INPUT.write_text(json.dumps({**CFG,'token':'x'*40}))
-  with patch.object(w,'guard',return_value=contextlib.nullcontext()):c.save()
+  with patch.object(w,'guard',return_value=contextlib.nullcontext()):c.save(stage(c.INPUT))
   self.assertIsNone(c.metadata()['directory']);self.assertFalse((c.PRIVATE/'cloud-directory.json').exists())
  def test_corrupt_or_old_credential_directory_is_not_projected(self):
   path=c.PRIVATE/'cloud-directory.json';path.write_text('{broken')
@@ -106,7 +107,7 @@ class CloudTest(unittest.TestCase):
  def test_saving_credentials_does_not_change_main_or_node_and_never_projects_token(self):
   c.INPUT.write_text(json.dumps(CFG))
   with patch.object(w,'guard',return_value=contextlib.nullcontext()),patch.object(w,'atomic') as node_writer:
-   c.save();node_writer.assert_not_called()
+   c.save(stage(c.INPUT));node_writer.assert_not_called()
   self.assertFalse(c.INPUT.exists());self.assertEqual(c.SETTINGS.stat().st_mode&0o777,0o600)
   self.assertNotIn(CFG['token'],c.STATE.read_text());self.assertNotIn('token',c.metadata())
  def test_unmanaged_existing_worker_is_never_uploaded_or_replaced(self):

@@ -440,10 +440,16 @@ def lan_interfaces(include_inactive=False):
     return result
 
 
-def control(action):
-    if action in ('warp-info','exit-observe','warp-org-save'):
+def control(action, request_id=None):
+    if action in ('settings-export','settings-import'):
+        from config_backup import export,import_settings
+        print(json.dumps(export() if action=='settings-export' else import_settings(request_id),ensure_ascii=False))
+    elif action in ('endpoint-info','endpoint-refresh','endpoint-save','endpoint-schedule','endpoint-recover'):
+        from endpoint_control import info,refresh,save,save_schedule,save_recovery
+        print(json.dumps(save_schedule(request_id) if action=='endpoint-schedule' else save_recovery(request_id) if action=='endpoint-recover' else save(request_id) if action=='endpoint-save' else refresh() if action=='endpoint-refresh' else info(),ensure_ascii=False))
+    elif action in ('warp-info','exit-observe','warp-org-save'):
         from warp_control import refresh,observe,save_organization
-        print(json.dumps(refresh() if action=='warp-info' else save_organization() if action=='warp-org-save' else observe(),ensure_ascii=False))
+        print(json.dumps(refresh() if action=='warp-info' else save_organization(request_id) if action=='warp-org-save' else observe(),ensure_ascii=False))
     elif action == 'interfaces':
         print(json.dumps(lan_interfaces(include_inactive=True)))
     elif action in ('enable', 'disable'):
@@ -459,7 +465,7 @@ def control(action):
     elif action.startswith('backup-'):
         from worker_backend import import_node, start_test, require_test
         if action == 'backup-import':
-            print(json.dumps(import_node(), ensure_ascii=False))
+            print(json.dumps(import_node(request_id), ensure_ascii=False))
         elif action == 'backup-test':
             print(json.dumps(start_test()))
         elif action in ('backup-scan','backup-scan-apply'):
@@ -483,11 +489,11 @@ def control(action):
             raise ValueError('未知备用操作')
     elif action.startswith('relay-'):
         from relay_pool import save, start, apply, runtime_status
-        result=save() if action=='relay-save' else start() if action=='relay-test' else apply() if action=='relay-apply' else runtime_status()
+        result=save(request_id) if action=='relay-save' else start() if action=='relay-test' else apply() if action=='relay-apply' else runtime_status()
         print(json.dumps(result,ensure_ascii=False))
     elif action.startswith('cloud-'):
         from cloud_worker import save, start, promote, forget
-        result=save() if action=='cloud-save' else promote() if action=='cloud-promote' else forget() if action=='cloud-forget' else start(action.removeprefix('cloud-'))
+        result=save(request_id) if action=='cloud-save' else promote() if action=='cloud-promote' else forget() if action=='cloud-forget' else start(action.removeprefix('cloud-'))
         print(json.dumps(result,ensure_ascii=False))
     elif action == 'dns-test':
         from dns_diagnostics import start
@@ -508,8 +514,7 @@ def control(action):
         print(login())
     elif action == 'register':
         from auth_control import register
-        register()
-        print('路由器已注册；请读取账户出口并明确选择，再启用设备')
+        print(json.dumps(register(request_id),ensure_ascii=False))
     elif action == 'discover':
         print(json.dumps(discover_exits(), ensure_ascii=False))
     else:
@@ -523,11 +528,13 @@ def discover_exits():
 
 def main():
     global STOP
-    if len(sys.argv) != 2 or sys.argv[1] not in ('run', 'warp-info', 'exit-observe', 'warp-org-save', 'backup-import', 'backup-test', 'backup-enable', 'backup-disable', 'backup-scan', 'backup-scan-apply', 'cloud-save', 'cloud-target', 'cloud-verify', 'cloud-deploy', 'cloud-check', 'cloud-promote', 'cloud-forget', 'relay-save', 'relay-test', 'relay-apply', 'relay-status', 'interfaces', 'enable', 'disable', 'prepare', 'login', 'register', 'discover', 'apply', 'cleanup', 'update-worker', 'dns-test', 'dns-clear', 'test', 'test-google', 'test-youtube', 'test-github', 'test-taobao', 'test-baidu'):
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[1] not in ('endpoint-save','settings-import','register','backup-import','cloud-save','relay-save','warp-org-save','endpoint-schedule','endpoint-recover') or sys.argv[1] not in ('run', 'settings-export', 'settings-import', 'endpoint-info', 'endpoint-refresh', 'endpoint-save', 'endpoint-schedule', 'endpoint-recover', 'warp-info', 'exit-observe', 'warp-org-save', 'backup-import', 'backup-test', 'backup-enable', 'backup-disable', 'backup-scan', 'backup-scan-apply', 'cloud-save', 'cloud-target', 'cloud-verify', 'cloud-deploy', 'cloud-check', 'cloud-promote', 'cloud-forget', 'relay-save', 'relay-test', 'relay-apply', 'relay-status', 'interfaces', 'enable', 'disable', 'prepare', 'login', 'register', 'discover', 'apply', 'cleanup', 'update-worker', 'dns-test', 'dns-clear', 'test', 'test-google', 'test-youtube', 'test-github', 'test-taobao', 'test-baidu'):
         raise SystemExit('Usage: routepilot run|prepare|login|register')
     os.umask(0o077)
     RUN.mkdir(parents=True, exist_ok=True)
     RUN.chmod(0o755)
+    from request_input import prepare_requests
+    prepare_requests(RUN)
     if sys.argv[1] == 'cleanup':
         with open(RUN / 'masque.lock', 'a') as lock:
             try:
@@ -547,7 +554,7 @@ def main():
         return
     if sys.argv[1] != 'run':
         try:
-            control(sys.argv[1])
+            control(sys.argv[1],sys.argv[2] if len(sys.argv)==3 else None)
         except Exception as error:
             from cloud_worker import CloudError
             from relay_pool import RelayError
@@ -566,14 +573,24 @@ def main():
         STOP = True
     signal.signal(signal.SIGTERM, halt)
     signal.signal(signal.SIGINT, halt)
+    from endpoint_control import Manager,stage_restored_preferences
+    stage_restored_preferences()
+    endpoint_manager = Manager()
     service = Service()
     service.stop(restore=False)  # Recover owned resources without undoing fault fallback.
     previous = None
+    endpoint_paused = False
+    pause_cleanup = {'direct':False}
     last_update, last_nonce, update_message = 0, None, ''
     try:
         while not STOP:
             try:
                 cfg = read_config()
+                try:
+                    from request_input import reap_requests
+                    reap_requests(RUN)
+                    endpoint_manager.poll()
+                except Exception:pass  # Candidate refresh must never interrupt the data plane.
                 enabled = cfg['main'].get('enabled') == '1'
                 if enabled:
                     choices = {item['name']: item for item in lan_interfaces()}
@@ -582,6 +599,7 @@ def main():
                         raise ValueError('所选 LAN 接口缺失、未启用或无唯一有效私网网段，请重新选择')
                     cfg['main']['lan_networks'] = [{'interface': name, 'network': choices[name]['network']} for name in selected]
                 preparing = cfg['main'].get('preparing') == '1'
+                if endpoint_manager.recover_requested(service,cfg['main']):previous=None
                 if not enabled and not preparing:
                     stopped = service.stop()
                     if not stopped['direct']:
@@ -592,6 +610,17 @@ def main():
                     desired = cfg['main'].get('backend', 'masque') if enabled else 'masque'
                     if desired not in ('masque','worker'):
                         raise ValueError('线路类型无效')
+                    if desired=='masque' and enabled:
+                        reason=endpoint_manager.pause_reason(cfg['main'])
+                        if reason:
+                            if not endpoint_paused:
+                                pause_cleanup=service.stop(restore=False)
+                                endpoint_paused=True
+                            previous=None
+                            output('error',reason,paused=True,recovering=False,fallback='direct' if pause_cleanup['direct'] else 'unknown',scope=cfg['main'].get('scope','devices'),attempted_nonce=cfg['main'].get('apply_nonce',''))
+                            time.sleep(3)
+                            continue
+                    endpoint_paused=False
                     if desired == 'worker':
                         from worker_backend import check_retry
                         if service.worker_failed_nonce == cfg['main'].get('apply_nonce', ''):
@@ -612,6 +641,9 @@ def main():
                         service.plane.protocol_preference=requested
                         service.plane.organization=cfg['main'].get('organization','')
                     service.plane.start()
+                    try:
+                        if enabled and endpoint_manager.tick(service,cfg['main']):previous=None
+                    except BlockingIOError:pass
                     if enabled and service.backend!='worker' and service.recovery_started is not None:
                         service.tunnel_ready()
                     if not enabled:
@@ -662,7 +694,7 @@ def main():
                         scope_message = ('所选局域网 ' + '、'.join(v['interface'] + ' ' + v['network'] for v in cfg['main']['lan_networks'])) if service.compiled.get('scope') == 'lan' else '仅接管所选设备'
                         output('running', ('备用线路运行中（TCP，UDP不代理）；' if service.backend == 'worker' else (service.plane.protocol or 'WARP')+' 已连接；') + scope_message + '。' + update_message,
                                service.compiled['devices'], exit=service.compiled['exit'], exit_ip=service.exit_ip,
-                               runtime_id=service.runtime_id, generation=digest, protocol='Workers' if service.backend == 'worker' else (service.plane.protocol or 'WARP'), protocol_warning=getattr(service.plane,'protocol_warning',''), protocol_observed_at=getattr(service.plane,'protocol_observed_at',0), backend=service.backend, proxy_interface='rp-backup' if service.backend == 'worker' else 'rp-host', backup_name=service.plane.node['name'] if service.backend == 'worker' and service.plane.node else None, scope=service.compiled.get('scope', 'devices'), rules_updated=int(last_update), applied_nonce=cfg['main'].get('apply_nonce', ''))
+                               runtime_id=service.runtime_id, generation=digest, protocol='Workers' if service.backend == 'worker' else (service.plane.protocol or 'WARP'), endpoint_generation=__import__('endpoint_control').generation(), protocol_warning=getattr(service.plane,'protocol_warning',''), protocol_observed_at=getattr(service.plane,'protocol_observed_at',0), backend=service.backend, proxy_interface='rp-backup' if service.backend == 'worker' else 'rp-host', backup_name=service.plane.node['name'] if service.backend == 'worker' and service.plane.node else None, scope=service.compiled.get('scope', 'devices'), rules_updated=int(last_update), applied_nonce=cfg['main'].get('apply_nonce', ''))
             except TunnelPending:
                 try:direct=service.suspend_capture()
                 except Exception:direct=service.stop(restore=False)['direct']
@@ -690,6 +722,7 @@ def main():
     finally:
         stopped = service.stop(restore=STOP)
         output('stopped', '插件已停止；' + stopped['legacy'] + ('；接管已撤回' if stopped['direct'] else '；清理未能确认，网络路径未知'), fallback='unknown')
+        lock.close()
 
 
 if __name__ == '__main__':

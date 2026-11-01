@@ -88,26 +88,23 @@ def refresh():
     return value
 
 
-def save_organization():
+def save_organization(request_id=None):
     # A server-side narrow write avoids committing unrelated form/GridSection edits.
     from runtime import command
     from worker_backend import guard
-    with guard():
-        try:
-            if ORGANIZATION_INPUT.is_symlink() or ORGANIZATION_INPUT.stat().st_size>1024:raise ControlError('组织输入无效')
-            data=json.loads(ORGANIZATION_INPUT.read_text())
-            if not isinstance(data,dict) or set(data)!={'organization'}:raise ControlError('组织输入无效')
-            from auth_control import organization as normalize_organization
-            org=normalize_organization(data['organization'])
-            cfg=read_config()['main'];old=cfg.get('organization','')
-            if cfg.get('enabled')=='1' and org!=old:raise ControlError('主线路正在使用，请先手动关闭再更换组织；原账户未改动')
-            nonce=cfg.get('apply_nonce') or str(time.time_ns())
-            if org!=old or not cfg.get('apply_nonce'):
-                command(['uci','set','routepilot.main.organization='+org])
-                command(['uci','set','routepilot.main.apply_nonce='+nonce])
-                command(['uci','commit','routepilot'])
-            return dict(organization=org,nonce=nonce,saved=True)
-        finally:ORGANIZATION_INPUT.unlink(missing_ok=True)
+    from request_input import claim_request
+    with guard(), claim_request(ORGANIZATION_INPUT,request_id,1024) as data:
+        if not isinstance(data,dict) or set(data)!={'organization'}:raise ControlError('组织输入无效')
+        from auth_control import organization as normalize_organization
+        org=normalize_organization(data['organization'])
+        cfg=read_config()['main'];old=cfg.get('organization','')
+        if cfg.get('enabled')=='1' and org!=old:raise ControlError('主线路正在使用，请先手动关闭再更换组织；原账户未改动')
+        nonce=cfg.get('apply_nonce') or str(time.time_ns())
+        if org!=old or not cfg.get('apply_nonce'):
+            command(['uci','set','routepilot.main.organization='+org])
+            command(['uci','set','routepilot.main.apply_nonce='+nonce])
+            command(['uci','commit','routepilot'])
+        return dict(organization=org,nonce=nonce,saved=True,request_id=request_id.split(':')[0])
 
 
 def observe():
@@ -125,7 +122,7 @@ def observe():
     country=fields.get('loc','')
     if not re.fullmatch('[A-Z]{2}',country):raise ControlError('检测站点未返回可识别的国家 / 地区')
     after=json.loads((RUN/'status.json').read_text())
-    context=('runtime_id','generation','applied_nonce','exit','backend')
+    context=('runtime_id','generation','applied_nonce','exit','backend','endpoint_generation')
     if after.get('state')!='running' or any(before.get(k)!=after.get(k) for k in context):
         raise ControlError('检测期间线路已变化；本次结果不作为当前出口证据')
     value=dict(state='done',time=time.time(),ip=ip,country=country,

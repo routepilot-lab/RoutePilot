@@ -1,3 +1,4 @@
+from input_fixture import stage
 import json,sys,tempfile,time,unittest
 from pathlib import Path
 from unittest.mock import Mock,patch
@@ -44,7 +45,7 @@ class AuthTest(unittest.TestCase):
   (self.identity/'reg.json').write_text('existing private identity');p=self.input()
   with patch.object(auth,'cli') as cli:
    with self.assertRaises(ControlError):auth.login()
-   with self.assertRaises(ControlError):auth.register()
+   with self.assertRaises(ControlError):auth.register(stage(auth.RUN/'auth-input'))
    cli.assert_not_called();self.assertFalse(p.exists());self.assertEqual((self.identity/'reg.json').read_text(),'existing private identity')
  def test_running_main_refuses_registration(self):
   self.cfg['main']['enabled']='1'
@@ -54,11 +55,11 @@ class AuthTest(unittest.TestCase):
  def test_first_setup_is_single_owned_flow_and_retry_reuses_it(self):
   with patch.object(auth,'cli') as cli:
    self.assertEqual(auth.login(),'https://test-team.cloudflareaccess.com/warp');self.assertEqual(auth.login(),'https://test-team.cloudflareaccess.com/warp');self.assertEqual(cli.call_count,1)
-   self.input();auth.register();self.assertEqual(cli.call_count,2);self.assertFalse((self.run/'auth-pending.json').exists())
+   self.input();auth.register(stage(auth.RUN/'auth-input'));self.assertEqual(cli.call_count,2);self.assertFalse((self.run/'auth-pending.json').exists())
  def test_changed_or_expired_pending_request_cannot_register(self):
   with patch.object(auth,'cli') as cli:
    auth.login();(self.identity/'reg.json').write_text('another identity');self.input()
-   with self.assertRaises(ControlError):auth.register()
+   with self.assertRaises(ControlError):auth.register(stage(auth.RUN/'auth-input'))
    self.assertEqual(cli.call_count,1)
  def test_organization_is_normalized_and_invalid_labels_refused(self):
   self.assertEqual(auth.organization(' Test-Team '),'test-team')

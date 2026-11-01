@@ -82,19 +82,31 @@
         "/usr/libexec/routepilot": [
           "exec"
         ],
-        "/var/run/routepilot/auth-input": [
+        "/var/run/routepilot/endpoint-input": [
           "write"
         ],
-        "/var/run/routepilot/backup-input": [
+        "/var/run/routepilot/settings-import-input": [
           "write"
         ],
-        "/var/run/routepilot/cloud-input": [
+        "/var/run/routepilot/endpoint-schedule-input": [
           "write"
         ],
-        "/var/run/routepilot/relay-input": [
+        "/var/run/routepilot/endpoint-recover-input": [
           "write"
         ],
-        "/var/run/routepilot/organization-input": [
+        "/var/run/routepilot/requests/auth-input-*.json": [
+          "write"
+        ],
+        "/var/run/routepilot/requests/backup-input-*.json": [
+          "write"
+        ],
+        "/var/run/routepilot/requests/cloud-input-*.json": [
+          "write"
+        ],
+        "/var/run/routepilot/requests/relay-input-*.json": [
+          "write"
+        ],
+        "/var/run/routepilot/requests/organization-input-*.json": [
           "write"
         ]
       },

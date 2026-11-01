@@ -34,12 +34,6 @@ class ExitTests(unittest.TestCase):
         self.assertEqual(exits.parse_networks(directory([])), [])
         self.assertEqual(exits.parse_networks(directory([IDS[-1].upper()]))[0]['id'], IDS[-1])
 
-    def test_country_hints_do_not_restrict_the_network_directory(self):
-        self.assertEqual(exits.country_hint('USA exit'),'US')
-        self.assertEqual(exits.country_hint('首尔 VPS'),'KR')
-        self.assertIsNone(exits.country_hint('US-Japan mixed'))
-        self.assertIsNone(exits.country_hint('business'))
-
     def test_bad_partial_duplicate_or_oversize_directory_fails_as_a_whole(self):
         bad = [directory().replace(IDS[1], 'bad'), directory().replace('Default: false', 'Default: unknown', 1),
                directory([IDS[0], IDS[0]]), directory() + '\n-- more --', directory().replace('Virtual Networks:', 'Other:'),

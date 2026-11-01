@@ -1,3 +1,4 @@
+from input_fixture import stage
 import copy,json,tempfile,time,unittest,sys
 from pathlib import Path
 from unittest.mock import patch
@@ -59,7 +60,7 @@ class WorkerTest(unittest.TestCase):
   with tempfile.TemporaryDirectory() as temp:
    d=Path(temp);i=d/'input';i.write_text('{}')
    with patch.object(w,'INPUT',i),patch.object(w,'NODE',d/'node'),patch.object(w,'RUN',d),patch.object(w,'read_config',return_value={'main':{}}),patch.object(w,'parse_input',return_value=NODE),patch.object(w,'command') as command:
-    w.import_node();self.assertFalse(i.exists());command.assert_not_called();self.assertEqual((d/'node').stat().st_mode&0o777,0o600)
+    w.import_node(stage(w.INPUT));self.assertFalse(i.exists());command.assert_not_called();self.assertEqual((d/'node').stat().st_mode&0o777,0o600)
  def test_provider_failure_threshold_does_not_switch_to_other_exit(self):
   p=w.WorkerPlane();p.child=type('P',(),{'poll':lambda self:None})();p.probe=lambda: (_ for _ in ()).throw(ValueError('fail'))
   with patch.object(w,'command',side_effect=lambda args,**kw:type('R',(),{'stdout':json.dumps([{'flags':['UP']}] if 'link' in args else [{'dev':w.TUN,'dst':'default'}])})()),patch.object(w,'curl',side_effect=RuntimeError('offline')),patch.object(w.time,'monotonic',return_value=100):p.optimize();self.assertEqual(p.failures,1)
@@ -117,7 +118,7 @@ class WorkerRegression(unittest.TestCase):
   import native
   from dns_diagnostics import make_query
   q=make_query('www.google.com');response=q[:2]+b'\x81\x80'+q[4:]
-  policy={'mark':123,'mode':'global','dns_foreign':'1.1.1.1','dns_domestic':'223.5.5.5','proxy_dns_override':w.DOH}
+  policy={'mark':123,'mode':'global','dns_foreign':'1.1.1.1','dns_domestic':'223.5.5.5','proxy_dns_override':'https://dns.google/dns-query'}
   with patch.object(native,'backup_doh',return_value=response) as doh,patch.object(native,'populate_sets'),patch.object(native.socket,'socket') as sock:
    native.upstream(q,policy);doh.assert_called_once();sock.assert_not_called()
   policy.update(mode='bypass_cn',china_domains=frozenset({'google.com'}))

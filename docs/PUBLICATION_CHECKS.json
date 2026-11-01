@@ -1,29 +1,88 @@
 {
-  "version": "0.2.24-4",
-  "prepared_at": "2026-11-01",
-  "python": {
-    "tests": 202,
-    "result": "passed"
+  "version": "0.2.32-2",
+  "local_checks": [
+    {
+      "check": "python-main",
+      "exit": 0,
+      "tests": 326
+    },
+    {
+      "check": "python-server",
+      "exit": 0,
+      "tests": 5
+    },
+    {
+      "check": "luci-contract",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "assets",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_center_scope",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_exit_loading",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_feedback_render",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_feedback_ui",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_request_binding",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_wizard",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_worker_template",
+      "exit": 0,
+      "tests": null
+    }
+  ],
+  "integrity": {
+    "version": "0.2.32-2",
+    "syntax_files": 43,
+    "worker_hash": true,
+    "reproducible": true,
+    "package_sha256": "1e9e03ff121ce9f1a2061596ac3b9b6907aae2bdc734a9334868cb9d5fc81b02",
+    "package_files": 41
   },
-  "javascript": {
-    "suites": 6,
-    "result": "passed"
-  },
-  "asset_versions": "passed",
-  "reproduced_ipk_sha256": "3c68974604febb6216dd16a7d6fd569c82877a21ced385ff8678847758e89eef",
-  "privacy_scope": {
-    "excluded": [
-      "router configuration exports",
-      "API tokens",
-      "registration identities",
-      "private runtime",
-      "personal cloud identifiers",
-      "local work history"
-    ],
-    "known_private_markers_found": false
-  },
-  "router_actions_during_publication_preparation": [],
-  "verification_scope": "Local public source checks only; prior target-device verification is described separately in the README.",
-  "sdk_install_permissions": "Explicitly mark the traffic observer launcher executable; web source upload does not preserve executable file modes.",
-  "sdk_build_executed": false
+  "all_passed": true,
+  "installed_program_files_verified": 40,
+  "protected_configuration_and_identity_unchanged": true,
+  "entry_and_exit_preserved": true,
+  "stable_runtime_samples": 5,
+  "https_checks": [
+    "proxy Google 204",
+    "proxy Cloudflare 200",
+    "direct Baidu 200"
+  ],
+  "browser": "Safari: five independent pages, Workers without global Save, badge rendering verified",
+  "opus": "Independent static review INSTALLABLE, followed by scoped badge fix review INSTALLABLE",
+  "limits": [
+    "not a long-term stability guarantee",
+    "no phone speed acceptance",
+    "no WireGuard switch",
+    "no real endpoint fault injection",
+    "no multi-LAN real-client acceptance",
+    "no full SDK build"
+  ]
 }

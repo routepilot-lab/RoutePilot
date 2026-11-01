@@ -11,12 +11,12 @@ const Feedback = new Function('baseclass', fs.readFileSync(path.join(root, 'htdo
 assert.ok(Feedback.prototype instanceof Base);
 const feedback = new Feedback();
 class Element {
- constructor(tag, attrs, children) { this.tag=tag; this.attrs=attrs||{}; this.value=this.attrs.value||''; this.open=!!this.attrs.open; this.style={}; this.children=[]; this.replaceChildren(children); }
+ constructor(tag, attrs, children) { this.tag=tag; this.attrs=attrs||{}; this.value=this.attrs.value||''; this.disabled=this.attrs.disabled!=null; this.hidden=this.attrs.hidden!=null; this.open=!!this.attrs.open; this.style={}; this.children=[]; this.replaceChildren(...(Array.isArray(children)?children:[children])); }
  set textContent(value) { this.children=[String(value)]; }
  get textContent() { return this.children.map(x=>x instanceof Element ? x.textContent : String(x)).join(' '); }
  appendChild(child) { this.children.push(child); return child; }
- replaceChildren(...children) { this.children=children.flat(3).filter(x=>x!=null); }
- setAttribute(k,v) { this.attrs[k]=v; }
+ replaceChildren(...children) { this.children=children.filter(x=>x!=null); }
+ setAttribute(k,v) { this.attrs[k]=v;if(k==='disabled')this.disabled=true; }
  querySelector(selector) {const cls=selector[0]==='.'?selector.slice(1):null;const id=(selector.match(/id="([^"]+)"/)||[])[1];return this.find(e=>cls?String(e.attrs.class||'').split(' ').includes(cls):id?e.attrs.id===id:e.tag===selector);}
  find(fn){for(const c of this.children){if(c instanceof Element){if(fn(c))return c;const x=c.find(fn);if(x)return x;}}return null;}
  addEventListener(name,fn){this.listeners=this.listeners||{};this.listeners[name]=fn;}
@@ -29,22 +29,23 @@ let lastMap,lastMapNode;const selections={};
 class Map {
  constructor(){this.children=[];lastMap=this;}
  render(){return this.renderContents();}
- renderContents(){return Promise.all(this.children.map(s=>s.render())).then(nodes=>{this.root=this.root||E('div',{id:'cbi-routepilot'});this.root.replaceChildren(nodes);lastMapNode=this.root;return this.root;});}
+ renderContents(){return Promise.all(this.children.map(s=>s.render())).then(nodes=>{this.root=this.root||E('div',{id:'cbi-routepilot'});this.root.replaceChildren(...nodes);lastMapNode=this.root;return this.root;});}
  section(){const s={children:[],render(){return Promise.all(s.children.map(o=>Promise.resolve(o.renderWidget('main',0,o.cfgvalue?o.cfgvalue():config[o.option])).then(widget=>E('div',{id:'cbi-routepilot-main-'+o.option},E('div',{class:'cbi-value-field'},widget))))).then(nodes=>E('div',{},nodes));},option(type,name,title){const o={option:name,title,value(k,v){this.keylist=this.keylist||[];this.vallist=this.vallist||[];this.keylist.push(k);this.vallist.push(v);},depends(){},formvalue(){return selections[this.option];},renderWidget(id,index,value){if(this.onclick)return E('button',{click:this.onclick},this.inputtitle);selections[this.option]=value;return E('select',{},value||'');}};s.children.push(o);return o;}};this.children.push(s);return s;}
 }
 let current = {state:'running',time:Date.now()/1000,exit:'usa',exit_ip:'192.0.2.1',generation:'rules1',runtime_id:'before',applied_nonce:'n1'};
 let test = {...current,state:'done',stale:false,finished_at:Date.now()/1000,results:[{id:'google',state:'ok',message:'可连接',ms:1}]};
 let tick;
+let endpointRecoveryInput=null,endpointScheduleInput=null,endpointInput=null,endpointResponse={settings:{mode:"preserve",address:"",hours:24,revision:"",staged:false},application:{},candidates:{entries:[]},collection:{},capability:{supported:true},pending:false};
 let receiver={schema:1,state:'observing',time:Date.now()/1000,runtime_id:'before',generation:'rules1',coverage:'complete',observed_drops:1289,queue_now:1048576,peak_queue:2097152,socket_count:1,known_ingress_count:1,other_public_udp_count:0,started_at:Date.now()/1000};
-const location={pathname:'/admin/services/routepilot/diagnostics'};
+let legacyReplacement='';const location={pathname:'/admin/services/routepilot/cloudflare/dns',replace(url){legacyReplacement=url;}};
 
-let activeElement=null,warpReply=null,observationReply=null,backupNodeReply=null,relayReply=null,dnsData=null,dnsTests=null,cloudReply=null,cloudCommandReply=null,cloudDirectoryReply=null,scanReply=null,cloudInputs=[],organizationInputs=[],notices=[];let directoryReply,directoryCalls=0,lastModal,syncDirectoryFailure=false,failStatusRead=false,registerWrites=0,commandCalls=[];
-const mockedFS={write(p,text){registerWrites++;if(p.endsWith('/organization-input'))organizationInputs.push(JSON.parse(text));if(p.endsWith('/cloud-input'))cloudInputs.push(JSON.parse(text));return Promise.resolve();},exec(p,args){if(p==='/usr/libexec/routepilot'){commandCalls.push(args[0]);assert.ok(['login','register','prepare','dns-test','dns-clear','test','cloud-save','cloud-verify','cloud-target','cloud-check','warp-org-save'].includes(args[0]));return Promise.resolve({code:0,stdout:args[0]==='warp-org-save'?JSON.stringify({organization:organizationInputs.at(-1).organization,nonce:'org-only'}):args[0].startsWith('cloud-')?JSON.stringify(cloudCommandReply||{}):args[0]==='login'?'https://example.invalid/warp':args[0]==='dns-test'?JSON.stringify({state:'submitted',request_id:'job-new',message:'submitted'}):args[0]==='dns-clear'?JSON.stringify({ok:true,...dnsData,removed:2}):'registered'});}assert.equal(p,'/usr/libexec/routepilot-exits');directoryCalls++;if(syncDirectoryFailure)throw Error('synchronous transport failure');return new Promise(resolve=>{directoryReply=resolve;});},read(p){if(p.endsWith('status.json')&&failStatusRead)return Promise.reject(Error('status read failure'));return Promise.resolve(JSON.stringify(p.endsWith('warp-state.json')?warpReply:p.endsWith('exit-observation.json')?observationReply:p.endsWith('backup-node.json')?backupNodeReply:p.endsWith('relay-tests.json')?relayReply:p.endsWith('cloud-directory-state.json')?cloudDirectoryReply:p.endsWith('backup-scan.json')?scanReply:p.endsWith('cloud-state.json')?cloudReply:p.endsWith('dns-state.json')?dnsData:p.endsWith('dns-tests.json')?dnsTests:p.endsWith('receive.json')?receiver:p.endsWith('status.json')?current:p.endsWith('connectivity.json')?test:{state:'success'}));}};
+let activeElement=null,warpReply=null,observationReply=null,backupNodeReply=null,relayReply=null,dnsData=null,dnsTests=null,cloudReply=null,cloudCommandReply=null,cloudDirectoryReply=null,scanReply=null,cloudInputs=[],organizationInputs=[],notices=[];let directoryReply,directoryCalls=0,lastModal,syncDirectoryFailure=false,failStatusRead=false,registerWrites=0,commandCalls=[],readCalls=[];
+const mockedFS={write(p,text){const slot=p.match(/\/requests\/([a-z-]+)-[a-f0-9]{32}\.json$/);if(slot)p='/'+slot[1];if(p.endsWith('/auth-input'))registerWrites++;if(p.endsWith('/endpoint-recover-input'))endpointRecoveryInput=JSON.parse(text).payload;if(p.endsWith('/endpoint-schedule-input'))endpointScheduleInput=JSON.parse(text).payload;if(p.endsWith('/endpoint-input'))endpointInput=JSON.parse(text).payload;if(p.endsWith('/organization-input'))organizationInputs.push(JSON.parse(text).payload);if(p.endsWith('/cloud-input'))cloudInputs.push(JSON.parse(text).payload);return Promise.resolve();},exec(p,args){if(p==='/usr/libexec/routepilot-backup-list')return Promise.resolve({code:0,stdout:'{}'});if(p==='/usr/libexec/routepilot'&&args[0]==='interfaces')return Promise.resolve({code:0,stdout:'[]'});if(p==='/usr/libexec/routepilot'){commandCalls.push(args[0]);assert.ok(['login','register','prepare','warp-info','dns-test','dns-clear','test','cloud-save','cloud-verify','cloud-target','cloud-check','warp-org-save','endpoint-info','endpoint-save','endpoint-refresh','endpoint-schedule','endpoint-recover','settings-export','settings-import'].includes(args[0]));if(args[0]==='endpoint-recover')return Promise.resolve({code:0,stdout:JSON.stringify({saved:true,request_id:args[1].split(':')[0]})});if(args[0]==='endpoint-schedule'){endpointResponse={...endpointResponse,settings:{...endpointResponse.settings,hours:endpointScheduleInput.hours}};return Promise.resolve({code:0,stdout:JSON.stringify({saved:true,settings:endpointResponse.settings,request_id:args[1].split(':')[0]})});}if(args[0]==='endpoint-save'){endpointResponse={...endpointResponse,settings:{...endpointInput,revision:'endpoint-new',staged:false},pending:true,application:{}};return Promise.resolve({code:0,stdout:JSON.stringify({saved:true,settings:endpointResponse.settings,request_id:args[1].split(':')[0]})});}if(args[0]==='endpoint-info'||args[0]==='endpoint-refresh')return Promise.resolve({code:0,stdout:JSON.stringify(endpointResponse)});return Promise.resolve({code:0,stdout:args[0]==='warp-org-save'?JSON.stringify({organization:organizationInputs.at(-1).organization,nonce:'org-only',request_id:args[1].split(':')[0]}):args[0].startsWith('cloud-')?JSON.stringify(args[0]==='cloud-save'?{...(cloudCommandReply||{}),saved:true,request_id:args[1].split(':')[0]}:(cloudCommandReply||{})):args[0]==='register'?JSON.stringify({registered:true,message:'registered',request_id:args[1].split(':')[0]}):args[0]==='login'?'https://example.invalid/warp':args[0]==='dns-test'?JSON.stringify({state:'submitted',request_id:'job-new',message:'submitted'}):args[0]==='dns-clear'?JSON.stringify({ok:true,...dnsData,removed:2}):'registered'});}assert.equal(p,'/usr/libexec/routepilot-exits');directoryCalls++;if(syncDirectoryFailure)throw Error('synchronous transport failure');return new Promise(resolve=>{directoryReply=resolve;});},read(p){readCalls.push(p);if(p.endsWith('status.json')&&failStatusRead)return Promise.reject(Error('status read failure'));return Promise.resolve(JSON.stringify(p.endsWith('warp-state.json')?warpReply:p.endsWith('exit-observation.json')?observationReply:p.endsWith('backup-node.json')?backupNodeReply:p.endsWith('relay-tests.json')?relayReply:p.endsWith('cloud-directory-state.json')?cloudDirectoryReply:p.endsWith('backup-scan.json')?scanReply:p.endsWith('cloud-state.json')?cloudReply:p.endsWith('dns-state.json')?dnsData:p.endsWith('dns-tests.json')?dnsTests:p.endsWith('receive.json')?receiver:p.endsWith('status.json')?current:p.endsWith('connectivity.json')?test:{state:'success'}));}};
 const config={enabled:'1',scope:'lan',exit:'usa',vnet_usa:'11111111-1111-4111-8111-111111111111',lan_interfaces:['br-lan'],apply_nonce:'n1'};
-const uci={sections(){return [];},set(c,s,k,v){config[k]=v;},get(c,s,k){return config[k];}};
-const ui={addNotification(a,b){notices.push(b.textContent);},hideModal(){},showModal(title,children){lastModal=E('modal',{},children);}};
+const uci={load(){return Promise.resolve();},unload(){return Promise.resolve();},sections(){return [];},set(c,s,k,v){config[k]=v;},get(c,s,k){return config[k];}};
+const ui={menu:{load(){return Promise.resolve({});},flushCache(){}},addNotification(a,b){notices.push(b.textContent);},hideModal(){},showModal(title,children){lastModal=E('modal',{},children);}};
 const View = new Function('window','document','view','form','uci','fs','ui','poll','network','rpc','dom','L','E','_','feedback',source)(
- {location}, {get activeElement(){return activeElement;},getElementById(id){return lastMapNode&&lastMapNode.find(e=>e.attrs.id===id);},createElementNS(ns,tag){return E(tag);}}, Base, {Map},uci,mockedFS,ui, {add(fn){tick=fn;}}, {}, {declare(){return ()=>Promise.resolve({});}}, {}, {url(){return '/admin/services/routepilot';},resource(){return '';}},E,s=>s,feedback);
+ {location,crypto:require('node:crypto').webcrypto}, {get activeElement(){return activeElement;},getElementById(id){return lastMapNode&&lastMapNode.find(e=>e.attrs.id===id);},createElementNS(ns,tag){return E(tag);}}, Base, {Map},uci,mockedFS,ui, {add(fn){tick=fn;}}, {}, {declare(){return ()=>Promise.resolve({});}}, {}, {url(p){return '/'+p;},resource(){return '';}},E,s=>s,feedback);
 assert.ok(View.prototype instanceof Base);
 const exitView = new View(), netA='11111111-1111-4111-8111-111111111111', netB='abcdefab-abcd-4abc-8abc-abcdefabcdef';
 const directory={available:true,read_at:Date.now(),last_success_at:Date.now(),networks:[{id:netA,name:'任意名称'},{id:netB,name:'任意名称',is_default:true}]};
@@ -62,10 +63,10 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  assert.ok(page.textContent.includes('DNS 解析检测'));assert.ok(page.textContent.includes('独立 DNS 状态与缓存'));
  current={...current,runtime_id:'after',time:Date.now()/1000};await tick();assert.ok(page.textContent.includes('历史结果已过期'));assert.ok(page.textContent.includes('接收观测已过期'));
  test={...test,runtime_id:'after'};await tick();assert.ok(!page.textContent.includes('历史结果已过期'));
- location.pathname='/admin/services/routepilot/advanced';const advanced=await new View().render([null,null,[],directory]);
+ location.pathname='/admin/services/routepilot/cloudflare/account';const advanced=await new View().render([null,null,[],directory]);
  const removed=['manual_networks','vnet_default','vnet_seoul','vnet_usa','expected_seoul','expected_usa'];
  assert.ok(!lastMap.children[0].children.some(o=>removed.includes(o.option)));
- assert.ok(!lastMap.children[0].children.some(o=>o.option==='_discover'));
+ assert.ok(!lastMap.children[0].children.some(o=>o.option==='_discover'),'account excludes routing fields');
  assert.ok(!advanced.find(e=>e.attrs['data-step']==='dir'));assert.ok(!advanced.find(e=>e.attrs['data-step']==='select'));
  assert.ok(advanced.textContent.includes('继续设置分流'));assert.ok(!advanced.textContent.includes(netA));
  const account=lastMap.children[0].children.find(o=>o.option==='_account_check');
@@ -85,7 +86,7 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  }
 
  // Exit directory now lives with the selector; refreshing must preserve current unsaved choice.
- location.pathname='/admin/services/routepilot/basic';const basic=await new View().render([null,null,[],directory]);assert.ok(basic.textContent.includes('打开 Cloudflare 备用线路'));assert.ok(!basic.textContent.includes('配置备份与迁移'));assert.ok(!basic.textContent.includes('手动启用备用'));
+ location.pathname='/admin/services/routepilot/cloudflare/routing';const basic=await new View().render([null,null,[],directory]);assert.ok(!basic.textContent.includes('5. Workers 备用与 Cloudflare API 授权'));assert.ok(!basic.textContent.includes('配置备份与迁移'));assert.ok(basic.textContent.includes('账户出口'));
  const discover=lastMap.children[0].children.find(o=>o.option==='_discover');selections.exit=netB;selections.lan_mode='global';
  basic.find(e=>e.attrs.id==='cbi-routepilot-main-exit').querySelector('.cbi-value-field').appendChild(E('div',{class:'cbi-value-description'},'出口说明保留'));
  const beforeConfig=JSON.stringify(config),pending=discover.onclick();assert.equal(discover.onclick(),pending);
@@ -94,7 +95,7 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  assert.equal(selections.exit,'cccccccc-cccc-4ccc-8ccc-cccccccccccc');assert.equal(JSON.stringify(config),beforeConfig);
  assert.ok(basic.textContent.includes('Fresh directory'));assert.ok(basic.textContent.includes('出口说明保留'));assert.equal(selections.lan_mode,'global');
  syncDirectoryFailure=true;await discover.onclick();syncDirectoryFailure=false;assert.ok(basic.textContent.includes('读取失败，请重试'));
- location.pathname='/admin/services/routepilot/workers';const workersPage=await new View().render([null,null,[],directory,null,{nodes:[],node:{configured:true,fingerprint:'saved',relay_fingerprint:'core'}}]);assert.ok(workersPage.textContent.includes('备用节点与独立检测'));assert.ok(workersPage.textContent.includes('手动启用备用'));assert.ok(workersPage.textContent.includes('不需要自有 VPS'));assert.ok(workersPage.textContent.includes('一键创建 Workers 并绑定域名'));assert.ok(workersPage.textContent.includes('开始自动优选'));assert.ok(workersPage.textContent.includes('API 令牌'));assert.ok(workersPage.textContent.includes('创建自定义令牌'));assert.ok(workersPage.textContent.includes('不会覆盖其他项目'));assert.ok(!workersPage.textContent.includes('配置备份与迁移'));
+ location.pathname='/admin/services/routepilot/cloudflare/workers';const workersPage=await new View().render([null,null,[],directory,null,{nodes:[],node:{configured:true,fingerprint:'saved',relay_fingerprint:'core'}}]);assert.ok(workersPage.textContent.includes('备用节点与独立检测'));assert.ok(workersPage.textContent.includes('手动启用备用'));assert.ok(workersPage.textContent.includes('不需要自有 VPS'));assert.ok(workersPage.textContent.includes('一键创建 Workers 并绑定域名'));assert.ok(workersPage.textContent.includes('开始自动优选'));assert.ok(workersPage.textContent.includes('API 令牌'));assert.ok(workersPage.textContent.includes('创建自定义令牌'));assert.ok(workersPage.textContent.includes('不会覆盖其他项目'));assert.ok(!workersPage.textContent.includes('配置备份与迁移'));
  const findLabel=name=>workersPage.find(e=>e.attrs['aria-label']===name),findButton=name=>workersPage.find(e=>e.tag==='button'&&e.textContent===name);
  backupNodeReply={configured:true,fingerprint:'saved'};relayReply={state:'done',results:[{address:'proxyip.cmliussss.net:443',profile:'cf-relay-v1',fingerprint:'core',finished_at:Date.now()/1000,forced:true,state:'ok'}]};await tick();assert.equal(findButton('应用已通过的主备顺序（不启用）').disabled,false);
  const cfBefore=JSON.stringify(config);findLabel('Cloudflare API 令牌').value='t'.repeat(40);
@@ -111,16 +112,72 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  await findButton('检查名称和子域名是否占用').attrs.click();assert.equal(cloudInputs.at(-1).hostname,'new-backup.example.com');assert.equal(cloudInputs.at(-1).zone_id,zoneA);
  prefix.value='https://bad';prefix.listeners.input();assert.equal(findLabel('绑定的子域名').value,'');assert.equal(findButton('检查名称和子域名是否占用').disabled,true);
  assert.equal(JSON.stringify(config),cfBefore);cloudReply=null;registerWrites=0;
- location.pathname='/admin/services/routepilot/cloudflare';
+ location.pathname='/admin/services/routepilot/cloudflare/account';
  warpReply={state:'available',protocol:'MASQUE',managed:true,source:'organization',message:'组织策略'};
- const centerDirectory={available:true,networks:[{id:netA,name:'美国出口',country_hint:'US'},{id:netB,name:'韩国出口',country_hint:'KR'}]};
+ const centerDirectory={available:true,networks:[{id:netA,name:'美国出口'},{id:netB,name:'韩国出口'}]};
  const centerPage=await new View().render([null,null,[],centerDirectory,null,{nodes:[],node:{configured:true,fingerprint:'saved',relay_fingerprint:'core'}},warpReply]);
- for(const title of ['1. 主线路账户与连接协议','2. 账户出口、国家 / 地区与接管范围','3. 设备分流','4. DNS 与联网检测','5. Workers 备用与 Cloudflare API 授权'])assert.ok(centerPage.textContent.includes(title));
- assert.ok(centerPage.find(e=>e.attrs.id==='cbi-routepilot-main-warp_protocol'));assert.ok(centerPage.find(e=>e.attrs.id==='cbi-routepilot-main-dns_foreign'));assert.ok(centerPage.textContent.includes('创建自定义令牌'));
- const beforeCenter=JSON.stringify(config),beforeChoice=selections.exit,region=centerPage.find(e=>e.attrs['aria-label']==='出口地区筛选（账户名称提示）');region.value='KR';await region.listeners.change();assert.equal(selections.exit,beforeChoice);assert.equal(JSON.stringify(config),beforeCenter);
+ assert.ok(centerPage.textContent.includes('1. 主线路账户与连接协议'));
+ for(const id of ['basic','devices','dns','workers'])assert.ok(!centerPage.find(e=>e.attrs.id==='rp-center-'+id));
+ for(const section of ['account','routing','devices','dns','workers'])assert.ok(centerPage.find(e=>e.tag==='a'&&e.attrs.href==='/admin/services/routepilot/cloudflare/'+section));
+ assert.ok(centerPage.find(e=>e.attrs.id==='cbi-routepilot-main-warp_protocol'));assert.ok(!centerPage.find(e=>e.attrs.id==='cbi-routepilot-main-dns_foreign'));
+ assert.ok(!centerPage.find(e=>e.attrs['aria-label']==='出口地区筛选（账户名称提示）'));
  await tick();assert.ok(centerPage.textContent.includes('实际协议'));assert.ok(!centerPage.textContent.includes('本次观测出口地区：美国'));
- const centerRoot=centerPage.find(e=>e.attrs.id==='cbi-routepilot');assert.ok(centerRoot);centerRoot.find(e=>e.attrs.id==='rp-center-dns').open=true;
- await lastMap.renderContents();assert.equal(centerPage.find(e=>e.attrs.id==='cbi-routepilot'),centerRoot);assert.equal(centerRoot.find(e=>e.attrs.id==='rp-center-dns').open,true);assert.ok(centerRoot.find(e=>e.attrs.id==='cbi-routepilot-main-dns_foreign'));
+ const centerRoot=centerPage.find(e=>e.attrs.id==='cbi-routepilot');assert.ok(centerRoot);centerRoot.find(e=>e.attrs.id==='rp-center-advanced').open=true;
+ await lastMap.renderContents();assert.equal(centerPage.find(e=>e.attrs.id==='cbi-routepilot'),centerRoot);assert.equal(centerRoot.find(e=>e.attrs.id==='rp-center-advanced').open,true);assert.ok(!centerRoot.find(e=>e.attrs.id==='cbi-routepilot-main-dns_foreign'));
+ // Track the real endpoint form's asynchronous revision without committing other form edits.
+ const endpointPanel=centerPage.find(e=>e.tag==='details'&&e.children.some(c=>c instanceof Element&&c.tag==='summary'&&c.textContent==='主线路入口选择与定期读取'));
+ endpointResponse.candidates={entries:['162.159.197.2:443','[2606:4700:102::2]:443','162.159.197.2:8443']};
+ endpointPanel.open=true;endpointPanel.listeners.toggle();await new Promise(setImmediate);
+ // LuCI sets every non-null attribute with setAttribute: disabled=false still disables HTML options.
+ const candidates=endpointPanel.find(e=>e.tag==='select'&&e.children.some(c=>c instanceof Element&&c.attrs.value==='162.159.197.2:443'));
+ const entryOptions=candidates.children.filter(c=>c instanceof Element&&c.tag==='option');
+ for(const opt of entryOptions.filter(o=>o.attrs.value&&o.attrs.value[0]!=='['))assert.ok(opt.attrs.disabled==null,'IPv4 must omit the disabled attribute, including false');
+ assert.equal(entryOptions.find(o=>o.attrs.value[0]==='[').attrs.disabled,true);
+ const modeControl=endpointPanel.find(e=>e.tag==='select'&&e.children.some(c=>c instanceof Element&&c.attrs.value==='custom'));
+ const candidateField=endpointPanel.find(e=>e.tag==='label'&&e.textContent.includes('固定候选入口'));
+ const customField=endpointPanel.find(e=>e.tag==='label'&&e.textContent.includes('手写 IPv4:端口'));
+ const refreshCandidates=endpointPanel.find(e=>e.tag==='button'&&e.textContent==='读取客户端最新本地候选（不切换）');
+ const syncInterval=endpointPanel.find(e=>e.tag==='select'&&e.children.some(c=>c instanceof Element&&c.attrs.value==='24'));
+ assert.deepEqual(modeControl.children.map(c=>c.attrs.value),['auto','candidate','custom']);
+ assert.equal(candidateField.hidden,true);assert.equal(customField.hidden,true);assert.equal(syncInterval.disabled,false);
+ assert.equal(E('option',{disabled:false}).disabled,true,'LuCI forwards false as a present HTML boolean attribute');
+ const callsBeforeMode=commandCalls.length;
+ modeControl.value='candidate';modeControl.listeners.change();assert.equal(candidateField.hidden,false);assert.equal(customField.hidden,true);assert.equal(candidates.disabled,false);
+ const entrySave=centerPage.find(e=>e.tag==='button'&&e.textContent==='应用并检测（可能重连）');
+ const noCandidateCalls=commandCalls.filter(c=>c==='endpoint-save').length;await entrySave.attrs.click();assert.equal(commandCalls.filter(c=>c==='endpoint-save').length,noCandidateCalls);assert.ok(endpointPanel.textContent.includes('请先选择候选入口'));
+ candidates.value='162.159.197.2:443';candidates.listeners.change();
+ await refreshCandidates.attrs.click();assert.equal(candidates.value,'162.159.197.2:443');assert.equal(modeControl.value,'candidate');
+ modeControl.value='custom';modeControl.listeners.change();assert.equal(candidateField.hidden,true);assert.equal(customField.hidden,false);
+ const entryInput=centerPage.find(e=>e.tag==='input'&&e.attrs.placeholder==='IPv4:端口');
+ entryInput.value='162.159.197.2:443';entryInput.listeners.input();
+ modeControl.value='auto';modeControl.listeners.change();assert.equal(candidateField.hidden,true);assert.equal(customField.hidden,true);assert.ok(endpointPanel.textContent.includes('无需选择或填写 IP'));
+ modeControl.value='custom';modeControl.listeners.change();assert.equal(customField.hidden,false);assert.equal(entryInput.value,'162.159.197.2:443');
+ const beforeIntervalCommands=commandCalls.length;const beforeIntervalRevision=endpointResponse.settings.revision;syncInterval.value='12';syncInterval.listeners.change();await endpointPanel.find(e=>e.tag==='button'&&e.textContent==='只保存同步间隔（不重连）').attrs.click();assert.deepEqual(commandCalls.slice(beforeIntervalCommands),['endpoint-schedule','endpoint-info']);assert.equal(endpointResponse.settings.revision,beforeIntervalRevision);assert.equal(modeControl.value,'custom');
+ const configBeforeEndpoint=JSON.stringify(config);await entrySave.attrs.click();assert.ok(centerPage.textContent.includes('等待后台处理本次请求'));
+ entryInput.value='162.159.197.2:500';entryInput.listeners.input();
+ endpointResponse={...endpointResponse,pending:false,application:{revision:'endpoint-new',state:'verifying'}};await tick();assert.ok(centerPage.textContent.includes('正在连接并验证原出口'));assert.equal(entryInput.value,'162.159.197.2:500');
+ endpointResponse.application={revision:'endpoint-new',state:'applied',connected:true,exit_verified:true};await tick();assert.ok(centerPage.textContent.includes('原预期出口验证通过'));assert.equal(JSON.stringify(config),configBeforeEndpoint);assert.equal(entryInput.value,'162.159.197.2:500');
+ // A second operation must terminate on a failure instead of leaving an old success visible.
+ await entrySave.attrs.click();endpointResponse={...endpointResponse,pending:false,application:{revision:'endpoint-new',state:'failed',rollback_confirmed:true}};await tick();assert.ok(centerPage.textContent.includes('已恢复原入口设置'));
+ // A recovery block overrides an already-saved revision and historical success.
+ const entryRead=centerPage.find(e=>e.tag==='button'&&e.textContent==='读取当前设置 / 应用结果');
+ entryInput.value='162.159.197.2:8095';entryInput.listeners.input();
+ endpointResponse={...endpointResponse,pending:true,application:{revision:'old',state:'applied',connected:true,exit_verified:true},recovery_block:{new_request_block:true,startup_pause:true,terminal:true,code:'RECOVERY_LATCHED',reason:'需人工核对'}};
+ await entryRead.attrs.click();assert.ok(centerPage.textContent.includes('入口请求受阻'));assert.ok(centerPage.textContent.includes('RECOVERY_LATCHED'));assert.ok(!endpointPanel.textContent.includes('等待后台处理本次请求'));assert.equal(entrySave.disabled,true);assert.equal(entryInput.value,'162.159.197.2:8095');
+ endpointResponse={...endpointResponse,recovery_offer:{available:true,revision:'blocked',context:'c'.repeat(64)}};await entryRead.attrs.click();
+ const recoverButton=endpointPanel.find(e=>e.tag==='button'&&e.textContent==='受控恢复原入口并验证');assert.equal(recoverButton.disabled,false);
+ recoverButton.attrs.click();const confirmation=lastModal.find(e=>e.tag==='input'&&e.attrs.placeholder==='RESTORE');const confirmButton=lastModal.find(e=>e.tag==='button'&&e.textContent==='确认恢复并验证');const beforeConfirm=commandCalls.length;await confirmButton.attrs.click();assert.equal(commandCalls.length,beforeConfirm);
+ confirmation.value='RESTORE';await confirmButton.attrs.click();assert.equal(endpointRecoveryInput.revision,'blocked');assert.equal(endpointRecoveryInput.context,'c'.repeat(64));assert.equal(JSON.stringify(config),configBeforeEndpoint);assert.ok(endpointPanel.textContent.includes('等待后台验证结果'));
+ endpointResponse.recovery_result={request_id:commandCalls.length?'unrelated':'',state:'done',message:'historical',time:Date.now()/1000};await tick();assert.ok(!endpointPanel.textContent.includes('上次受控恢复：'));
+ endpointResponse.recovery_result=null;
+ const blockedCommands=commandCalls.length;await entrySave.attrs.click();assert.equal(commandCalls.length,blockedCommands);
+ // A valid existing transaction still tracks verification to completion while new saves are disabled.
+ endpointResponse={...endpointResponse,pending:false,recovery_block:{new_request_block:false}};await entryRead.attrs.click();assert.equal(entrySave.disabled,false);await entrySave.attrs.click();
+ endpointResponse={...endpointResponse,pending:false,application:{revision:'endpoint-new',state:'applying'},recovery_block:{new_request_block:true,startup_pause:false,terminal:false,code:'TRANSACTION_ACTIVE',reason:'原事务处理中'}};await tick();assert.ok(!endpointPanel.textContent.includes('需要时重新保存'));assert.ok(endpointPanel.textContent.includes('必要时人工核对'));
+ endpointResponse={...endpointResponse,pending:false,application:{revision:'endpoint-new',state:'verifying'},recovery_block:{new_request_block:true,startup_pause:false,terminal:false,code:'TRANSACTION_ACTIVE',reason:'原事务处理中'}};await tick();assert.ok(endpointPanel.textContent.includes('正在连接并验证原出口'));assert.equal(entrySave.disabled,true);
+ endpointResponse={...endpointResponse,application:{revision:'endpoint-new',state:'applied',connected:true,exit_verified:true},recovery_block:{new_request_block:false}};await tick();assert.ok(endpointPanel.textContent.includes('原预期出口验证通过'));assert.equal(entrySave.disabled,false);
+ modeControl.value='candidate';modeControl.listeners.change();candidates.value='162.159.197.2:8443';candidates.listeners.change();await entrySave.attrs.click();assert.equal(endpointInput.mode,'manual');assert.equal(endpointInput.address,'162.159.197.2:8443');
+ modeControl.value='auto';modeControl.listeners.change();await entrySave.attrs.click();assert.equal(endpointInput.mode,'auto');assert.equal(endpointInput.address,'');assert.equal(candidateField.hidden,true);assert.equal(customField.hidden,true);assert.equal(JSON.stringify(config),configBeforeEndpoint);
  const snapshot=JSON.parse(JSON.stringify(config));selections.organization='new-team';selections.dns_foreign='9.9.9.9';const pendingExit=selections.exit;
  await centerPage.find(e=>e.tag==='button'&&e.textContent==='保存组织名称').attrs.click();assert.equal(config.organization,'new-team');assert.equal(config.apply_nonce,'org-only');assert.equal(config.exit,snapshot.exit);assert.equal(config.dns_foreign,snapshot.dns_foreign);assert.equal(selections.exit,pendingExit);assert.equal(selections.dns_foreign,'9.9.9.9');
  for(const key of Object.keys(config))delete config[key];Object.assign(config,snapshot);registerWrites=0;
@@ -129,7 +186,7 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  const cloudMeta={configured:true,token_saved:true,account_id:accountA,zone_id:zoneA,script:'routepilot-backup',hostname:'cloud.example.com',directory:domainCache,projects:[{script:'routepilot-backup',hostname:'cloud.example.com',uploaded:true,bound:true,saved_as_backup:true}]};
  cloudReply={...cloudMeta,state:'ready',action:'check',started_at:Date.now()/1000-10,finished_at:Date.now()/1000-9,directory:{...domainCache,read_at:domainCache.read_at-10,all_zones:[]}};
  backupNodeReply={configured:true,fingerprint:'saved',sni:'cloud.example.com',address:'104.21.39.117',relay_fingerprint:'core'};
- location.pathname='/admin/services/routepilot/cloudflare';const domainPage=await new View().render([null,null,[],centerDirectory,null,{nodes:[],cloud:cloudMeta,node:backupNodeReply},warpReply]);await tick();
+ location.pathname='/admin/services/routepilot/cloudflare/workers';const domainPage=await new View().render([null,null,[],centerDirectory,null,{nodes:[],cloud:cloudMeta,node:backupNodeReply},warpReply]);await tick();
  const domainControl=name=>domainPage.find(e=>e.attrs['aria-label']===name),domainButton=name=>domainPage.find(e=>e.tag==='button'&&e.textContent===name);
  assert.equal(domainControl('选择账户下可用的根域名').children.length,4);assert.equal(domainControl('绑定的子域名').value,'cloud.example.com');
  assert.equal(domainButton('将新部署设为备用节点（不启用）').disabled,true);
@@ -150,9 +207,9 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  // Manual stage selection survives polling, while valid applied/probe state can advance automatically.
  const useStage=domainPage.find(e=>e.attrs['data-stage']==='use');useStage.querySelector('summary').listeners.click();useStage.open=true;await tick();assert.equal(useStage.open,true);
  cloudReply=null;cloudDirectoryReply=null;backupNodeReply=null;registerWrites=0;
- location.pathname='/admin/services/routepilot/workers';
+ location.pathname='/admin/services/routepilot/cloudflare/dns';
  // Private cache and DNS actions never call save/apply or change configuration.
- location.pathname='/admin/services/routepilot/dns';current={...current,state:'running',time:Date.now()/1000};
+ location.pathname='/admin/services/routepilot/cloudflare/dns';current={...current,state:'running',time:Date.now()/1000};
  dnsData={schema:1,state:'running',time:Date.now()/1000,runtime_id:current.runtime_id,generation:current.generation,process_instance:'p1',control_available:true,upstreams:{dns_domestic:'223.5.5.5',dns_foreign:'1.1.1.1',transport:'tcp'},policies:[{index:1,cache_entries:2,cache_hits:1,requests:3,errors:0}]};
  const dnsPage=await new View().render([null,null,[]]);await tick();const baselineConfig=JSON.stringify(config);
  await dnsPage.find(e=>e.tag==='button'&&e.textContent==='清理本插件 DNS 缓存').attrs.click();await new Promise(setImmediate);
@@ -162,13 +219,28 @@ assert.equal(exitView.exitOptions(netB.toUpperCase(),{},directory)[1].value,netB
  await tick();assert.ok(dnsPage.textContent.includes('本机受管 DNS 入口解析通过'));assert.equal(JSON.stringify(config),baselineConfig);
  dnsData={...dnsData,process_instance:'p2'};await tick();assert.ok(dnsPage.textContent.includes('历史 DNS 结果已过期'));
  // Registration single-flight and post-registration directory invalidation are retained.
- location.pathname='/admin/services/routepilot/advanced';config.enabled='0';current={...current,state:'preparing'};
+ location.pathname='/admin/services/routepilot/cloudflare/account';config.enabled='0';current={...current,state:'preparing'};
  const registrationView=new View(),registrationPage=await registrationView.render([null,null,[],{available:false,networks:[]}]);const options=lastMap.children[0].children;
- registrationView.applySettings=()=>Promise.resolve(false);const beforeCommands=commandCalls.length;await options.find(o=>o.option==='_prepare').onclick();assert.equal(commandCalls.length,beforeCommands);
+ registrationView.applySettings=()=>{throw Error('merged center must not save unrelated form edits');};const beforeCommands=commandCalls.length;await options.find(o=>o.option==='_prepare').onclick();assert.deepEqual(commandCalls.slice(beforeCommands),['warp-org-save','prepare']);
  registrationView.applySettings=()=>Promise.resolve(true);failStatusRead=true;await options.find(o=>o.option==='_login').onclick();failStatusRead=false;assert.notEqual(registrationPage.find(e=>e.attrs['data-step']==='auth').attrs['data-state'],'error');
  const first=options.find(o=>o.option==='_account_check').onclick();await new Promise(setImmediate);const beforeCalls=directoryCalls;
  await options.find(o=>o.option==='_login').onclick();lastModal.find(e=>e.tag==='input').value='synthetic value';const reg=lastModal.find(e=>e.tag==='button'&&e.textContent==='注册此路由器');const registering=reg.attrs.click();reg.attrs.click();assert.equal(registerWrites,1);
  await new Promise(setImmediate);directoryReply({code:0,stdout:JSON.stringify({available:true,networks:[{name:'Old account response',id:netA}]})});await first;await new Promise(setImmediate);assert.equal(directoryCalls,beforeCalls+1);
  directoryReply({code:0,stdout:JSON.stringify(directory)});await registering;assert.ok(!registrationPage.textContent.includes('Old account response'));
- console.log('Real view: merged navigation, preserved unsaved exit/legacy configuration, isolated DNS actions, stale results and registration single-flight passed');
+ // Real load -> render migration: legacy URLs retain behavior through the canonical center.
+ for(const [alias,group] of Object.entries({basic:'basic',devices:'devices',dns:'dns',diagnostics:'dns',advanced:'advanced',workers:'workers'})){
+  location.pathname='/admin/services/routepilot/'+alias;legacyReplacement='';const instance=new View();const loaded=await instance.load();const node=await instance.render(loaded);
+  const section={basic:'routing',advanced:'account',devices:'devices',dns:'dns',workers:'workers'}[group];assert.equal(legacyReplacement,'/admin/services/routepilot/cloudflare/'+section);assert.ok(!node.textContent.includes('[object Object]'),'nested children must not stringify into the page');assert.equal(node.attrs['data-page'],section);assert.ok(node.find(e=>e.attrs.id==='rp-center-'+group));
+ }
+ // Each canonical URL renders one section and polls only its own runtime data.
+ const expectedReads={account:['status.json','warp-state.json','exit-observation.json'],routing:['status.json','connectivity.json','exit-observation.json'],devices:['status.json'],dns:['status.json','connectivity.json','receive.json','dns-state.json','dns-tests.json','connection-events.json'],workers:['status.json','backup-node.json','backup-test.json','cloud-state.json','backup-scan.json','relay-tests.json','relay-observed.json','exit-observation.json','connection-events.json','cloud-directory-state.json']};
+ for(const [section,group] of Object.entries({account:'advanced',routing:'basic',devices:'devices',dns:'dns',workers:'workers'})){
+  location.pathname='/admin/services/routepilot/cloudflare/'+section;
+  const before=JSON.stringify(config),node=await new View().render([null,null,[],directory]);
+  assert.ok(!node.textContent.includes('[object Object]'),'nested children must not stringify into the page');assert.equal(node.attrs['data-page'],section);assert.ok(node.find(e=>e.attrs.id==='rp-center-'+group));
+  for(const other of ['advanced','basic','devices','dns','workers'].filter(x=>x!==group))assert.ok(!node.find(e=>e.attrs.id==='rp-center-'+other));
+  readCalls=[];await tick();assert.ok(!node.textContent.includes('[object Object]'),'poll updates must preserve DOM children');assert.deepEqual(readCalls.map(p=>path.basename(p)).sort(),expectedReads[section].sort());
+  const previousTick=tick;location.pathname='/admin/services/routepilot/backup';readCalls=[];await previousTick();assert.deepEqual(readCalls,[],'departed page must stop polling');assert.equal(JSON.stringify(config),before);
+ }
+ console.log('Real view: five independent pages, scoped polling, preserved drafts/configuration, isolated DNS actions and registration single-flight passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});
