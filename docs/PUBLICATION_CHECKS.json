@@ -1,0 +1,27 @@
+{
+  "version": "0.2.24-4",
+  "prepared_at": "2026-11-01",
+  "python": {
+    "tests": 202,
+    "result": "passed"
+  },
+  "javascript": {
+    "suites": 6,
+    "result": "passed"
+  },
+  "asset_versions": "passed",
+  "reproduced_ipk_sha256": "3c68974604febb6216dd16a7d6fd569c82877a21ced385ff8678847758e89eef",
+  "privacy_scope": {
+    "excluded": [
+      "router configuration exports",
+      "API tokens",
+      "registration identities",
+      "private runtime",
+      "personal cloud identifiers",
+      "local work history"
+    ],
+    "known_private_markers_found": false
+  },
+  "router_actions_during_publication_preparation": [],
+  "verification_scope": "Local public source checks only; prior target-device verification is described separately in the README."
+}
