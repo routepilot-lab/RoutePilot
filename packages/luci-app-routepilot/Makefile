@@ -52,7 +52,7 @@ define Package/luci-app-routepilot/install
 	$(INSTALL_DIR) $(1)/www
 	$(CP) ./htdocs/* $(1)/www/
 	chmod 600 $(1)/etc/config/routepilot
-	chmod 755 $(1)/etc/init.d/routepilot $(1)/usr/libexec/routepilot $(1)/usr/libexec/routepilot-exits $(1)/usr/libexec/routepilot-observe $(1)/usr/libexec/routepilot-backup-list
+	chmod 755 $(1)/etc/init.d/routepilot $(1)/usr/libexec/routepilot $(1)/usr/libexec/routepilot-exits $(1)/usr/libexec/routepilot-observe $(1)/usr/libexec/routepilot-traffic $(1)/usr/libexec/routepilot-backup-list
 endef
 
 $(eval $(call BuildPackage,luci-app-routepilot))
