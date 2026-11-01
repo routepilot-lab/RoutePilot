@@ -1,13 +1,81 @@
-# RoutePilot 0.2.32-2（测试版）
+# RoutePilot · OpenWrt WARP / MASQUE 路由器分流
 
-面向 ARM64 OpenWrt 24.10 的独立 WARP 主线路、设备 / LAN 分流及手动 Workers 备用插件。现场验证机为 GL.iNet GL-MT6000；不是固件，也不是 Cloudflare 官方产品。当前版本进入日常稳定性观察期，不将短期通过当作长期稳定保证。
+**在路由器上统一管理 Cloudflare WARP、设备分流和 DNS，让需要代理的流量走指定出口，让直连流量继续走本地宽带。**
 
-## 本版变化
+OpenWrt / LuCI policy-based routing with **Cloudflare WARP (MASQUE)**, per-device / LAN rules, DNS diagnostics and a manually enabled Cloudflare Workers backup.
 
-- Cloudflare 中心分为账户与协议、出口与分流、设备、DNS、Workers 五个独立页面，只读取本页数据；目录和协议异步加载。
-- 删除按出口名称推测地区的筛选，保留直接选出口与实际出口地区检测。
-- 主线路入口支持官方自动、固定候选、手写 IPv4；候选定期读取不自动换入口。应用时验证原链路，失败尝试恢复，无法确认则阻断并提供受控恢复。
-- 修复并发敏感请求的领取隔离、同步间隔独立保存、离线请求等待基线、LuCI 徽章显示；清理废弃页面分支与资源。
+[下载测试版 v0.2.32-2](https://github.com/routepilot-lab/RoutePilot/releases/tag/v0.2.32-2) · [安装说明](packages/luci-app-routepilot/INSTALL.zh-CN.md) · [中文使用指南](packages/luci-app-routepilot/README.zh-CN.md) · [常见问题](docs/FAQ.md) · [反馈问题](https://github.com/routepilot-lab/RoutePilot/issues/new/choose)
+
+## 它解决什么问题？
+
+- **多台设备不想逐个配置。** 在兼容路由器上按设备或整个 LAN 选择接管范围，让接入网络的手机、电脑等设备共用路由器策略。
+- **不希望所有流量都走同一条路径。** 可选国内 IP 直连、全部代理、代理名单、直连名单等模式；设备和网络范围由你决定。
+- **有 WARP、Zero Trust 或 VPS，但管理分散。** 在 LuCI 中集中查看账户、协议、入口、已部署的虚拟网络出口和当前运行状态。
+- **连不上时不知道问题在哪。** 独立查看 DNS、网站连通性、实际出口 IP / 地区、连接记录和流量观测，区分“已保存”和“已生效”。
+
+适合已有 Cloudflare 账户、兼容 OpenWrt 环境，并愿意自行管理网络线路的用户。**当前是测试版，首次部署仍需要准备运行环境，并非上传一个 IPK 就能在全新路由器上使用。**
+
+## 核心特点
+
+| 能力 | 对使用者的价值 |
+| --- | --- |
+| WARP / MASQUE 主线路 | 在路由器统一管理官方客户端连接与账户出口 |
+| 按设备或 LAN 分流 | 自行决定哪些设备 / 网络接管，以及直连或代理规则 |
+| 入口与出口分开管理 | 入口支持官方自动、固定候选、手写 IPv4；出口从账户已有虚拟网络中选择 |
+| 入口应用后检测 | 短暂重连并验证原预期出口；失败尝试恢复，无法确认时保留阻断与恢复证据 |
+| 独立 DNS 管理 | 国内与代理上游、缓存状态、清缓存和解析检测，定位解析问题 |
+| 手动 Workers 备用 | 部署、域名绑定、PROXYIP、优选、独立检测和启用分别操作，切换由你决定 |
+| 五个独立设置页 | 账户与协议、出口与分流、设备、DNS、Workers 按页读取数据 |
+| 保留既有配置 | 不改写原 SSR、系统 network/firewall/dhcp 配置；开关和接管范围明确 |
+
+普通主线路故障时，当前策略会撤回接管并可能允许宽带直连；入口恢复无法确认时另有阻断保护。请按自己的需求理解这些行为。
+
+## 一张图看懂线路
+
+```mermaid
+flowchart LR
+    A[手机 / 电脑 / 其他设备] --> B[OpenWrt + RoutePilot]
+    B --> C[按设备或 LAN 分流]
+    C --> D[本地宽带直连]
+    C --> E[WARP / MASQUE 主线路]
+    E --> F[WARP 默认出口或已部署的 VPS 出口]
+    C -. 手动启用备用 .-> G[Cloudflare Workers 备用]
+```
+
+**入口 IP 不等于出口 IP。** 优选或固定入口影响连接 Cloudflare 的路径；实际网站看到哪个出口，取决于当前 WARP / 虚拟网络 / VPS 或备用线路。出口名称也不等于地区证明，可在页面检测实际出口。
+
+## 开始使用
+
+1. **确认环境。** 本轮已验证 GL.iNet GL-MT6000、ARM64、OpenWrt 24.10。其他硬件 / 固件请先核对兼容性。
+2. **阅读安装说明。** [Release](https://github.com/routepilot-lab/RoutePilot/releases/tag/v0.2.32-2) 提供插件 IPK、公开源码和 SHA256SUMS。已有兼容运行环境可备份后升级插件；新设备需另行合法准备未注册运行环境和固件依赖。
+3. **授权自己的账户。** 在“账户与协议”完成路由器登录；在“出口与分流”选择账户已有出口与接管范围。VPS 出口需事先在组织端部署对应路由。
+4. **手动开启并验证。** 查看总览实际状态，到 DNS 页检测解析与网站连通性；需要时再配置、独立测试和手动启用 Workers 备用。
+
+公开包不包含 Cloudflare 客户端、Debian 运行环境、账户身份、API 令牌或私人节点。首次安装默认关闭；已有设备升级保留设置和身份，但会短暂重连。
+
+## 当前版本和验证范围
+
+**v0.2.32-2 · Pre-release / 稳定性观察中。**
+
+- 331 项 Python 测试、7 组 JavaScript、目标 LuCI 契约、资源/权限校验及可重复构建通过。
+- 现有目标设备核对 40 项程序文件，配置、身份、原入口及出口保持；连续状态、代理与直连 HTTPS 检查通过。
+- Safari 已检查五个独立页面；Opus 参与独立静态审查。
+
+[验证摘要](docs/PUBLICATION_CHECKS.json)记录具体范围。长期稳定性、手机速度、其他机型、新设备完整安装、WireGuard 切换、多 LAN 真实设备和入口故障注入尚未在本轮验收。Workers 备用仅支持 IPv4 TCP，需手动启用，不自动故障切换；本项目不承诺固定带宽、任意地区或全网最优入口。
+
+## English overview
+
+RoutePilot is an **OpenWrt LuCI routing plugin** for managing a Cloudflare WARP / MASQUE primary connection, per-device or LAN-wide split tunneling, DNS upstreams and diagnostics, and a manual Cloudflare Workers backup.
+
+Use it to centralize routing rules on a compatible router, choose which devices or networks are managed, keep selected traffic direct, and inspect the active connection and exit. Existing account virtual networks can be selected; a VPS exit requires routes already deployed in your Cloudflare organization. Changing a Cloudflare entry IP does not select an exit country.
+
+The current release is **a pre-release under stability observation**, validated on GL-MT6000 / ARM64 OpenWrt 24.10. The IPK updates an existing compatible runtime; it is not a complete first-install bundle. Runtime software, Cloudflare credentials and private configurations are not distributed. Workers backup supports IPv4 TCP and must be tested and enabled manually. See [installation](packages/luci-app-routepilot/INSTALL.zh-CN.md), [FAQ](docs/FAQ.md) and [releases](https://github.com/routepilot-lab/RoutePilot/releases).
+
+## 反馈与参与
+
+遇到问题请通过 [Issues](https://github.com/routepilot-lab/RoutePilot/issues/new/choose) 提交版本、硬件、固件、复现步骤及脱敏后的错误信息。欢迎补充兼容设备的实际体验、完善文档或提交修复；请勿上传令牌、登录链接、私钥或完整设备配置。
+
+如果项目对你有帮助，欢迎 Star，或把仓库分享给有相同 OpenWrt / WARP 管理需求的人。
 
 ## 构建与检查
 
@@ -17,20 +85,8 @@ python3 packages/luci-app-routepilot/tools/build.py
 python3 packages/luci-app-routepilot/tools/check_all.py --luci-core /path/to/target/luci.js --report .local/check-all/report.json
 ```
 
-Makefile 为版本唯一来源。测试仅需 Python/Node 标准库；完整检查另需自行从目标设备取得 LuCI 核心文件，不分发设备文件，也不用替身冒充真实 ABI。
-
-## 安装和使用
-
-下载 Releases 中的 IPK、公开源码包及 SHA256SUMS。IPK 用于已有兼容运行环境的设备升级，**不是完整首次安装包**，不含 Cloudflare 客户端、Debian 运行环境、登录身份、API 令牌或私人配置。全新设备须另行合法准备未注册运行环境和固件匹配依赖。
-
-已有设备先备份，在维护窗口通过 `opkg install ./luci-app-routepilot_0.2.32-2_all.ipk` 升级插件；保留运行环境与注册信息，升级会短暂重连。首次安装默认关闭，自己的账户需独立授权。参见[使用说明](packages/luci-app-routepilot/README.zh-CN.md)、[安装说明](packages/luci-app-routepilot/INSTALL.zh-CN.md)、[Workers 设置](docs/WORKERS_SETUP.md)。
-
-## 已验证与边界
-
-331 项 Python、7 组 JavaScript、目标 LuCI 契约、资源和权限校验及可重复构建通过；现有目标机程序文件一致、配置身份入口出口保持、连续运行状态及代理/直连 HTTPS 检查通过，Safari 已检查五页。Opus 提供静态独立审查，不代表它执行设备测试。
-
-长期稳定性、手机速度、其他机型、全新设备安装、WireGuard 切换、多 LAN 真实设备及入口故障注入未在本轮验收。Workers 只支持 IPv4 TCP，需独立检测和手动启用，不自动切换主备用。链路故障撤回接管可能允许宽带直连；不能把配置未变当成运行态没有变化。
+Makefile 为版本唯一来源；测试使用 Python / Node 标准库。完整检查需自行取得目标 LuCI 核心文件，不用替身冒充真实 ABI 验收。
 
 ## 许可
 
-RoutePilot 自有代码为 MIT，内置 cmliu/edgetunnel 衍生 Worker 为 GPL-2.0，保留对应源码、许可及来源。第三方客户端和服务按各自条款使用。参见[第三方说明](THIRD_PARTY_NOTICES.txt)。
+RoutePilot 自有代码为 MIT，内置 cmliu/edgetunnel 衍生 Worker 为 GPL-2.0，保留对应源码、许可及来源。第三方客户端和服务按各自条款使用。参见[第三方说明](THIRD_PARTY_NOTICES.txt)。本项目不是 Cloudflare 官方产品。
