@@ -23,5 +23,7 @@
     "known_private_markers_found": false
   },
   "router_actions_during_publication_preparation": [],
-  "verification_scope": "Local public source checks only; prior target-device verification is described separately in the README."
+  "verification_scope": "Local public source checks only; prior target-device verification is described separately in the README.",
+  "sdk_install_permissions": "Explicitly mark the traffic observer launcher executable; web source upload does not preserve executable file modes.",
+  "sdk_build_executed": false
 }
