@@ -1,4 +1,4 @@
-# RoutePilot 常见问题 / FAQ
+# imok 常见问题 / FAQ
 
 ## 这是给谁用的？
 
@@ -38,7 +38,7 @@ WARP 默认线路不要求自建 VPS。要使用自己的 VPS 出口，需要先
 
 ## Is this a complete first-install image?
 
-No. RoutePilot is a LuCI plugin, not router firmware or a bundled Cloudflare runtime. The published IPK updates an existing compatible runtime. Prepare runtime software and firmware-specific dependencies separately, and authorize your own Cloudflare account.
+No. imok is a LuCI plugin, not router firmware or a bundled Cloudflare runtime. The published IPK updates an existing compatible runtime. Prepare runtime software and firmware-specific dependencies separately, and authorize your own Cloudflare account.
 
 ## Does changing an entry IP change my exit country?
 

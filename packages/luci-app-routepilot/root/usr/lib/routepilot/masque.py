@@ -301,7 +301,7 @@ class Service:
         except Exception:
             clean = False
         try:
-            self.plane.stop()  # Includes only RoutePilot-owned resources.
+            self.plane.stop()  # Includes only imok-owned resources.
             if self.backend != 'worker':
                 WorkerPlane().stop()
         except Exception:
@@ -477,7 +477,7 @@ def control(action, request_id=None):
                 if action == 'backup-enable':
                     require_test()
                     if read_config()['main'].get('enabled') != '1':
-                        raise ValueError('请先核对并开启 RoutePilot 总开关')
+                        raise ValueError('请先核对并开启 imok 总开关')
                 nonce = str(time.time_ns())
                 command(['uci','set','routepilot.main.backend=' + ('worker' if action == 'backup-enable' else 'masque')])
                 command(['uci','set','routepilot.main.apply_nonce=' + nonce])

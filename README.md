@@ -1,10 +1,10 @@
-# RoutePilot · OpenWrt WARP / MASQUE 路由器分流
+# imok · OpenWrt WARP / MASQUE 路由器分流
 
 **在路由器上统一管理 Cloudflare WARP、设备分流和 DNS，让需要代理的流量走指定出口，让直连流量继续走本地宽带。**
 
 OpenWrt / LuCI policy-based routing with **Cloudflare WARP (MASQUE)**, per-device / LAN rules, DNS diagnostics and a manually enabled Cloudflare Workers backup.
 
-[下载测试版 v0.2.32-2](https://github.com/routepilot-lab/RoutePilot/releases/tag/v0.2.32-2) · [安装说明](packages/luci-app-routepilot/INSTALL.zh-CN.md) · [中文使用指南](packages/luci-app-routepilot/README.zh-CN.md) · [常见问题](docs/FAQ.md) · [反馈问题](https://github.com/routepilot-lab/RoutePilot/issues/new/choose)
+[下载更名版 v0.2.33-1](https://github.com/routepilot-lab/imok/releases/tag/v0.2.33-1) · [安装说明](packages/luci-app-routepilot/INSTALL.zh-CN.md) · [中文使用指南](packages/luci-app-routepilot/README.zh-CN.md) · [常见问题](docs/FAQ.md) · [反馈问题](https://github.com/routepilot-lab/imok/issues/new/choose)
 
 ## 它解决什么问题？
 
@@ -34,7 +34,7 @@ OpenWrt / LuCI policy-based routing with **Cloudflare WARP (MASQUE)**, per-devic
 
 ```mermaid
 flowchart LR
-    A[手机 / 电脑 / 其他设备] --> B[OpenWrt + RoutePilot]
+    A[手机 / 电脑 / 其他设备] --> B[OpenWrt + imok]
     B --> C[按设备或 LAN 分流]
     C --> D[本地宽带直连]
     C --> E[WARP / MASQUE 主线路]
@@ -44,10 +44,14 @@ flowchart LR
 
 **入口 IP 不等于出口 IP。** 优选或固定入口影响连接 Cloudflare 的路径；实际网站看到哪个出口，取决于当前 WARP / 虚拟网络 / VPS 或备用线路。出口名称也不等于地区证明，可在页面检测实际出口。
 
+## 更名与升级兼容
+
+项目原名 **RoutePilot**，现更名为 **imok**。为了让已有用户保留注册身份与现有设置，安装包仍叫 `luci-app-routepilot`；UCI 配置、服务名、命令、目录和备份格式继续沿用 `routepilot`。这些技术标识不是漏改，无需卸载旧包或重装运行环境。LuCI 的菜单与品牌显示改为 imok。仓库地址现为 `routepilot-lab/imok`，历史版本保留。
+
 ## 开始使用
 
 1. **确认环境。** 本轮已验证 GL.iNet GL-MT6000、ARM64、OpenWrt 24.10。其他硬件 / 固件请先核对兼容性。
-2. **阅读安装说明。** [Release](https://github.com/routepilot-lab/RoutePilot/releases/tag/v0.2.32-2) 提供插件 IPK、公开源码和 SHA256SUMS。已有兼容运行环境可备份后升级插件；新设备需另行合法准备未注册运行环境和固件依赖。
+2. **阅读安装说明。** [Release](https://github.com/routepilot-lab/imok/releases/tag/v0.2.33-1) 提供插件 IPK、公开源码和 SHA256SUMS。已有兼容运行环境可备份后升级插件；新设备需另行合法准备未注册运行环境和固件依赖。
 3. **授权自己的账户。** 在“账户与协议”完成路由器登录；在“出口与分流”选择账户已有出口与接管范围。VPS 出口需事先在组织端部署对应路由。
 4. **手动开启并验证。** 查看总览实际状态，到 DNS 页检测解析与网站连通性；需要时再配置、独立测试和手动启用 Workers 备用。
 
@@ -55,7 +59,11 @@ flowchart LR
 
 ## 当前版本和验证范围
 
-**v0.2.32-2 · Pre-release / 稳定性观察中。**
+**v0.2.33-1 · imok 更名版（预发布）。**
+
+2026-11-06：维护者反馈，原 v0.2.32-2 连续日常使用数日，未发现问题。本次更名版只调整品牌显示、版本和文档，保留网络逻辑及配置兼容；该使用反馈属于原版本的实际体验，不表示新包已经在所有设备或环境完成验收。
+
+下列真机验收来自原 v0.2.32-2；更名包目前完成本地回归，未重新安装到路由器。
 
 - 331 项 Python 测试、7 组 JavaScript、目标 LuCI 契约、资源/权限校验及可重复构建通过。
 - 现有目标设备核对 40 项程序文件，配置、身份、原入口及出口保持；连续状态、代理与直连 HTTPS 检查通过。
@@ -65,15 +73,15 @@ flowchart LR
 
 ## English overview
 
-RoutePilot is an **OpenWrt LuCI routing plugin** for managing a Cloudflare WARP / MASQUE primary connection, per-device or LAN-wide split tunneling, DNS upstreams and diagnostics, and a manual Cloudflare Workers backup.
+imok is an **OpenWrt LuCI routing plugin** for managing a Cloudflare WARP / MASQUE primary connection, per-device or LAN-wide split tunneling, DNS upstreams and diagnostics, and a manual Cloudflare Workers backup.
 
 Use it to centralize routing rules on a compatible router, choose which devices or networks are managed, keep selected traffic direct, and inspect the active connection and exit. Existing account virtual networks can be selected; a VPS exit requires routes already deployed in your Cloudflare organization. Changing a Cloudflare entry IP does not select an exit country.
 
-The current release is **a pre-release under stability observation**, validated on GL-MT6000 / ARM64 OpenWrt 24.10. The IPK updates an existing compatible runtime; it is not a complete first-install bundle. Runtime software, Cloudflare credentials and private configurations are not distributed. Workers backup supports IPv4 TCP and must be tested and enabled manually. See [installation](packages/luci-app-routepilot/INSTALL.zh-CN.md), [FAQ](docs/FAQ.md) and [releases](https://github.com/routepilot-lab/RoutePilot/releases).
+The current release is **the imok rebranding pre-release (v0.2.33-1)**. The maintainer reports several days of daily use of the previous v0.2.32-2 without observed issues; this is user-reported experience, not a universal stability guarantee. Previous device validation used GL-MT6000 / ARM64 OpenWrt 24.10; the rebranding package has local regression coverage and has not been reinstalled on the router. The IPK updates an existing compatible runtime; it is not a complete first-install bundle. Runtime software, Cloudflare credentials and private configurations are not distributed. Workers backup supports IPv4 TCP and must be tested and enabled manually. See [installation](packages/luci-app-routepilot/INSTALL.zh-CN.md), [FAQ](docs/FAQ.md) and [releases](https://github.com/routepilot-lab/imok/releases).
 
 ## 反馈与参与
 
-遇到问题请通过 [Issues](https://github.com/routepilot-lab/RoutePilot/issues/new/choose) 提交版本、硬件、固件、复现步骤及脱敏后的错误信息。欢迎补充兼容设备的实际体验、完善文档或提交修复；请勿上传令牌、登录链接、私钥或完整设备配置。
+遇到问题请通过 [Issues](https://github.com/routepilot-lab/imok/issues/new/choose) 提交版本、硬件、固件、复现步骤及脱敏后的错误信息。欢迎补充兼容设备的实际体验、完善文档或提交修复；请勿上传令牌、登录链接、私钥或完整设备配置。
 
 如果项目对你有帮助，欢迎 Star，或把仓库分享给有相同 OpenWrt / WARP 管理需求的人。
 
@@ -89,9 +97,9 @@ Makefile 为版本唯一来源；测试使用 Python / Node 标准库。完整�
 
 ## 项目初衷与感谢 / Acknowledgements
 
-RoutePilot 从一个真实的需求开始：让大陆用户在兼容路由器上，更方便地管理访问开放互联网的连接，同时兼顾日常直连、速度体验和可控性。项目由维护者持续提出需求、亲自试用和反馈，并与 AI 工具一起反复开发、检查与改进，逐步走到公开发布。我们希望这些工作能帮助更多有相同需求的人。
+imok 从一个真实的需求开始：让大陆用户在兼容路由器上，更方便地管理访问开放互联网的连接，同时兼顾日常直连、速度体验和可控性。项目由维护者持续提出需求、亲自试用和反馈，并与 AI 工具一起反复开发、检查与改进，逐步走到公开发布。我们希望这些工作能帮助更多有相同需求的人。
 
-首先感谢 **[Cloudflare](https://www.cloudflare.com/)**。WARP、Zero Trust 和 Workers 为这个项目提供了关键的服务与技术基础；RoutePilot 在这些能力之上，把路由器侧的管理、分流和诊断整理为可操作的界面。
+首先感谢 **[Cloudflare](https://www.cloudflare.com/)**。WARP、Zero Trust 和 Workers 为这个项目提供了关键的服务与技术基础；imok 在这些能力之上，把路由器侧的管理、分流和诊断整理为可操作的界面。
 
 感谢 **[ChatGPT / OpenAI](https://openai.com/chatgpt/)**，在需求梳理、技术研究、代码开发、测试、排障和文档整理中参与协作，让一个想法逐步成为可以使用、检查和分享的项目。
 
@@ -101,8 +109,8 @@ RoutePilot 从一个真实的需求开始：让大陆用户在兼容路由器上
 
 我们对更广泛可用性的期待是项目愿景；实际速度和可用性仍取决于运营商、网络环境、Cloudflare 服务、所选出口及硬件，不能将当前测试结果视为对所有地区、所有用户或固定带宽的保证。
 
-**English:** Our thanks go first to Cloudflare for the WARP, Zero Trust and Workers foundations; to ChatGPT / OpenAI for development collaboration; to Claude Opus / Anthropic for independent technical review; and to the OpenWrt, LuCI and upstream open-source communities. RoutePilot is a community project, independently maintained and not an official product or endorsement of these organizations.
+**English:** Our thanks go first to Cloudflare for the WARP, Zero Trust and Workers foundations; to ChatGPT / OpenAI for development collaboration; to Claude Opus / Anthropic for independent technical review; and to the OpenWrt, LuCI and upstream open-source communities. imok is a community project, independently maintained and not an official product or endorsement of these organizations.
 
 ## 许可
 
-RoutePilot 自有代码为 MIT，内置 cmliu/edgetunnel 衍生 Worker 为 GPL-2.0，保留对应源码、许可及来源。第三方客户端和服务按各自条款使用。参见[第三方说明](THIRD_PARTY_NOTICES.txt)。本项目不是 Cloudflare 官方产品。
+imok 自有代码为 MIT，内置 cmliu/edgetunnel 衍生 Worker 为 GPL-2.0，保留对应源码、许可及来源。第三方客户端和服务按各自条款使用。参见[第三方说明](THIRD_PARTY_NOTICES.txt)。本项目不是 Cloudflare 官方产品。

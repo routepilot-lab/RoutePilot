@@ -1,0 +1,96 @@
+{
+  "version": "0.2.33-1",
+  "date": "2026-11-06",
+  "name": "imok",
+  "former_name": "RoutePilot",
+  "scope": "branding, version and documentation only",
+  "checks": [
+    {
+      "check": "python-main",
+      "exit": 0,
+      "tests": 326
+    },
+    {
+      "check": "python-server",
+      "exit": 0,
+      "tests": 5
+    },
+    {
+      "check": "luci-contract",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "assets",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_center_scope",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_exit_loading",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_feedback_render",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_feedback_ui",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_request_binding",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_wizard",
+      "exit": 0,
+      "tests": null
+    },
+    {
+      "check": "test_worker_template",
+      "exit": 0,
+      "tests": null
+    }
+  ],
+  "integrity": {
+    "version": "0.2.33-1",
+    "syntax_files": 43,
+    "worker_hash": true,
+    "reproducible": true,
+    "package_sha256": "12ea3852079115c3a009946c58ece52305d4722933866f53542fa1b90635ab9a",
+    "package_files": 41
+  },
+  "all_passed": true,
+  "compatibility_files_verified_identical": [
+    "root/etc/config/routepilot",
+    "root/etc/init.d/routepilot",
+    "root/lib/upgrade/keep.d/routepilot",
+    "root/usr/lib/routepilot/endpoint_control.py",
+    "root/usr/lib/routepilot/config_backup.py",
+    "root/usr/lib/routepilot/request_input.py",
+    "root/usr/lib/routepilot/worker_backend.py",
+    "root/usr/share/routepilot/workers/worker.mjs",
+    "root/usr/share/routepilot/workers/SOURCE.json"
+  ],
+  "python_implementation_change": "only display-name string/comment replacement",
+  "rpc_permissions_unchanged": true,
+  "router_not_modified": true,
+  "user_report": {
+    "date": "2026-11-06",
+    "version": "0.2.32-2",
+    "statement": "连续日常使用数日，未发现问题",
+    "source": "maintainer report",
+    "not_an_independent_device_test": true
+  },
+  "release_status": "pre-release; branding package not installed on the router",
+  "public_source_checks_passed": true
+}

@@ -1,4 +1,4 @@
-"""Shared RoutePilot I/O and rule validation; the service entry is masque.main.
+"""Shared imok I/O and rule validation; the service entry is masque.main.
 
 No shell evaluation or writes to SSR/network/firewall/DHCP configuration.
 """

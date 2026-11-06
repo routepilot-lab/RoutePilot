@@ -29,7 +29,7 @@ def uninstall(ask=input):
             if target.read_bytes() != (ROOT / name).read_bytes():
                 raise ValueError('服务文件已被修改；请人工检查后再卸载')
             paths.append(target)
-    print('只删除 RoutePilot 的两个服务及其已知配置文件，不更改 Cloudflare 网页里的隧道或DNS。')
+    print('只删除 imok 的两个服务及其已知配置文件，不更改 Cloudflare 网页里的隧道或DNS。')
     if ask('输入 REMOVE 确认删除此安装的密钥与节点配置：') != 'REMOVE':
         raise ValueError('已取消')
     if paths:

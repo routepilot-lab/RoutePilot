@@ -59,7 +59,7 @@ def build(destination=None):
     metadata = f'''Package: luci-app-routepilot
 Version: {VERSION}
 Architecture: all
-Maintainer: RoutePilot contributors
+Maintainer: imok contributors
 Section: luci
 Priority: optional
 License: MIT, GPL-2.0 (Worker template)

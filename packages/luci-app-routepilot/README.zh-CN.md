@@ -1,4 +1,4 @@
-# RoutePilot 使用说明
+# imok 使用说明
 
 当前公开版本和验证边界统一见[项目 README](../../README.md)。安装前阅读[安装与恢复](INSTALL.zh-CN.md)。GL.iNet 管理页面通常为 `http://192.168.8.1:8080/cgi-bin/luci/admin/services/routepilot`；以自己设备的地址和端口为准。
 

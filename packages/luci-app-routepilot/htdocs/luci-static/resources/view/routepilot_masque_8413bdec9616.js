@@ -240,7 +240,7 @@ return view.extend({
   var switchEnabled=uci.get('routepilot','main','enabled')==='1',switchPending=null;
   var switchText=E('p',{},_('新安装默认关闭。开关立即生效，无需点击页面底部保存；不会提交尚未保存的其他设置。'));
   var switchFeedback=E('div',{hidden:true},switchText);
-  var powerButton=E('button',{class:'btn cbi-button-action',click:function(){switchFeedback.hidden=false;var action=switchEnabled?'disable':'enable';powerButton.disabled=true;switchText.textContent=_('正在切换，等待后台确认…');command(action).then(function(msg){var result=JSON.parse(msg);switchEnabled=result.enabled;uci.set('routepilot','main','enabled',switchEnabled?'1':'0');uci.set('routepilot','main','preparing','0');switchPending={nonce:result.nonce,started:Date.now()};powerButton.textContent=switchEnabled?_('关闭 RoutePilot'):_('开启 RoutePilot');}).catch(function(e){switchText.textContent=e.message;powerButton.disabled=false;});}},switchEnabled?_('关闭 RoutePilot'):_('开启 RoutePilot'));
+  var powerButton=E('button',{class:'btn cbi-button-action',click:function(){switchFeedback.hidden=false;var action=switchEnabled?'disable':'enable';powerButton.disabled=true;switchText.textContent=_('正在切换，等待后台确认…');command(action).then(function(msg){var result=JSON.parse(msg);switchEnabled=result.enabled;uci.set('routepilot','main','enabled',switchEnabled?'1':'0');uci.set('routepilot','main','preparing','0');switchPending={nonce:result.nonce,started:Date.now()};powerButton.textContent=switchEnabled?_('关闭 imok'):_('开启 imok');}).catch(function(e){switchText.textContent=e.message;powerButton.disabled=false;});}},switchEnabled?_('关闭 imok'):_('开启 imok'));
   var backupNode=null,backupTest=null,backupBusy=false,backupRequested=0,backupSwitch=null;
   var backupInfo=E('p',{role:'status'},_('正在读取备用状态…')),backupResult=E('div'),backupProgress=E('p',{class:'rp-help'});
   var backupSource=E('select',{'aria-label':_('备用节点来源')},[E('option',{value:'current'},_('保留已配置备用，只调整入口')),E('option',{value:'saved'},_('从原有节点读取（不修改原配置）')),E('option',{value:'uri'},_('粘贴 VLESS＋WS＋TLS 链接'))]);
@@ -459,7 +459,7 @@ return view.extend({
    days.forEach(function(d){var text=d.ok?bytes(d.proxy+d.direct):'—',bar=E('div',{class:'rp-day-bars','aria-hidden':'true'},d.ok?[E('span',{class:'rp-bar-direct',style:'height:'+(d.direct/max*100)+'%'}),E('span',{class:'rp-bar-proxy',style:'height:'+(d.proxy/max*100)+'%'})]:E('span',{class:'rp-no-data'},'—'));weekChart.appendChild(E('div',{class:'rp-day',role:'img','aria-label':d.day+': '+(d.ok?_('代理 ')+bytes(d.proxy)+_('，直连 ')+bytes(d.direct):_('没有采集数据'))},[E('span',{class:'rp-day-number'},text),bar,E('span',{class:'rp-day-label'},d.day.slice(5))]));});
    if(!days.length)weekChart.appendChild(E('p',{class:'rp-help'},_('采集开始后显示每日趋势。')));
    trafficMeta.textContent=v?_('累计为自此时间起的观测下限：')+when(v.started_at)+_(' · 最后采样：')+when(v.time)+_(' · 路由器时区：')+String(v.timezone||_('未知'))+_('。每 5 分钟保存一次，掉电可能丢失未保存部分。仅含受管 IPv4 公网转发；不含 IPv6、局域网、路由器本机和隧道封装开销。')+(v.gaps?_(' 已记录不完整采样区间或边界：')+v.gaps+_(' 次。'):'')+(validTrafficCounts(v.unallocated)&&Object.keys(v.unallocated).some(function(k){return v.unallocated[k]>0;})?_(' 有无法归属到日期的流量，仅纳入累计。'):''):_('升级前的流量无法补算。');
-   versionInfo.textContent='RoutePilot '+(buildInfo.package||_('版本待读取'))+' · WARP '+(v&&v.client_version?v.client_version:_('版本未知'))+_(' · 仅显示本机读到的版本；是否有更新请核对官方发布记录。');
+   versionInfo.textContent='imok '+(buildInfo.package||_('版本待读取'))+' · WARP '+(v&&v.client_version?v.client_version:_('版本未知'))+_(' · 仅显示本机读到的版本；是否有更新请核对官方发布记录。');
   }
   function updateOverview(v,t){
    var fresh=feedback.fresh(v,Date.now()),running=fresh&&v.state==='running',tone=!fresh?'unknown':running?'good':v.state==='error'?'bad':'warn';
@@ -482,7 +482,7 @@ return view.extend({
    clearPending=true;dnsClearButton.disabled=true;
    command('dns-clear').then(JSON.parse).then(function(result){
     if(!result.ok||!liveDNS||['runtime_id','generation','process_instance'].some(function(k){return result[k]!==liveDNS[k];}))throw Error(_('连接已改变，请刷新后确认缓存状态'));
-    notify(_('已清理 RoutePilot 独立 DNS 缓存，移除 ')+result.removed+_(' 条；未清理系统、SSR 缓存或动态分流规则。'));
+    notify(_('已清理 imok 独立 DNS 缓存，移除 ')+result.removed+_(' 条；未清理系统、SSR 缓存或动态分流规则。'));
    }).catch(function(e){notify(e.message,true);}).finally(function(){clearPending=false;dnsClearButton.disabled=feedback.dnsState(liveDNS,wizardStatus,Date.now())!=='running'||!liveDNS.control_available;});
   }},_('清理本插件 DNS 缓存'));
   var dnsProbeButton=E('button',{class:'btn cbi-button-action',disabled:true,click:function(){
@@ -771,7 +771,7 @@ var exitName=v.backend==='worker'?(v.backup_name||_('Workers 备用')):directory
   if(center&&typeof m.renderContents==='function'){var renderMap=m.renderContents.bind(m);m.renderContents=function(){Object.keys(centerGroups).forEach(function(id){centerOpen[id]=centerGroups[id].open;});return renderMap.apply(null,arguments).then(function(node){buildCenter(node,true);return node;});};}
 
   var content=page==='overview'?[overviewHero,trafficCard,nodeCard,quickCard,connectionHistory,versionInfo]:page==='rules'?[rulesCard]:page==='backup'?[backupCard]:[];
-  return (center||formPage?m.render():Promise.resolve(null)).then(function(node){if(center){content=buildCenter(node);}else if(node){var title=node.querySelector('h2');if(title)title.remove();var intro=node.querySelector('.cbi-map-descr');if(intro)intro.remove();content.push(node);}if(['overview','account','routing'].includes(page))Promise.resolve().then(function(){if(isCurrentView())return refreshDirectory();}).catch(function(){});if(page==='account')Promise.resolve().then(function(){if(isCurrentView())return centerRead('warp-info');}).catch(function(){});return E('div',{class:'rp-layout','data-page':page},[E('link',{rel:'stylesheet',href:L.resource('routepilot/style_8325ca4c2af3.css')}),E('div',{class:'rp-header'},[E('span',{class:'rp-brand'},'RoutePilot'),E('h2',{},pageInfo[1]),E('p',{class:'rp-caption'},pageInfo[2])]),E('div',{class:'rp-page-content'},content)]);});
+  return (center||formPage?m.render():Promise.resolve(null)).then(function(node){if(center){content=buildCenter(node);}else if(node){var title=node.querySelector('h2');if(title)title.remove();var intro=node.querySelector('.cbi-map-descr');if(intro)intro.remove();content.push(node);}if(['overview','account','routing'].includes(page))Promise.resolve().then(function(){if(isCurrentView())return refreshDirectory();}).catch(function(){});if(page==='account')Promise.resolve().then(function(){if(isCurrentView())return centerRead('warp-info');}).catch(function(){});return E('div',{class:'rp-layout','data-page':page},[E('link',{rel:'stylesheet',href:L.resource('routepilot/style_e9c628be00f2.css')}),E('div',{class:'rp-header'},[E('span',{class:'rp-brand'},'imok'),E('h2',{},pageInfo[1]),E('p',{class:'rp-caption'},pageInfo[2])]),E('div',{class:'rp-page-content'},content)]);});
  },
  handleSaveApply:function(){return this.applySettings();},
  handleReset:null

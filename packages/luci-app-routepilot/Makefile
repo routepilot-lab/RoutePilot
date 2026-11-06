@@ -1,10 +1,10 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-routepilot
-PKG_VERSION:=0.2.32
-PKG_RELEASE:=2
+PKG_VERSION:=0.2.33
+PKG_RELEASE:=1
 PKG_LICENSE:=MIT GPL-2.0
-PKG_MAINTAINER:=RoutePilot contributors
+PKG_MAINTAINER:=imok contributors
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -12,7 +12,7 @@ define Package/luci-app-routepilot
   SECTION:=luci
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
-  TITLE:=RoutePilot MASQUE per-device routing
+  TITLE:=imok MASQUE per-device routing
   PKGARCH:=all
   DEPENDS:=+luci-base +python3-light +python3-urllib +python3-logging +python3-ctypes +python3-openssl +python3-uuid +ip-full +nftables-json +kmod-tun +kmod-veth +conntrack +curl +ca-bundle
 endef

@@ -59,7 +59,7 @@ def units(directory):
 WantedBy=multi-user.target
 '''
     xray = '''[Unit]
-Description=RoutePilot independent VLESS WebSocket backend
+Description=imok independent VLESS WebSocket backend
 After=network-online.target
 Wants=network-online.target
 [Service]
@@ -76,7 +76,7 @@ PrivateTmp=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 ''' + common
     cloudflared = '''[Unit]
-Description=RoutePilot independent Cloudflare Tunnel connector
+Description=imok independent Cloudflare Tunnel connector
 After=network-online.target routepilot-server.service
 Wants=network-online.target routepilot-server.service
 [Service]
@@ -113,7 +113,7 @@ def prepare(directory, hostname, token, xray, cloudflared, service_root, create=
         (directory / name).chmod(0o755)
     params = urlencode({'encryption': 'none', 'security': 'tls', 'sni': hostname,
                         'type': 'ws', 'host': hostname, 'path': ws_path})
-    uri = 'vless://%s@%s:443?%s#%s' % (user_id, hostname, params, quote('RoutePilot-' + hostname))
+    uri = 'vless://%s@%s:443?%s#%s' % (user_id, hostname, params, quote('imok-' + hostname))
     (directory / 'client-link.txt').write_text(uri + '\n')
     (directory / 'install-state.json').write_text(json.dumps({
         'owner': 'routepilot-server', 'version': VERSION, 'hostname': hostname,

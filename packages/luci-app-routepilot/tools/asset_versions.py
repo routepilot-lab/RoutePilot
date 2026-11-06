@@ -21,7 +21,7 @@ def paths(root):
     menu = json.loads((root / MENU).read_text(encoding='utf-8'))
     names = {entry['action']['path'] for entry in menu.values() if entry.get('action', {}).get('type') == 'view'}
     if len(names) != 1:
-        raise ValueError('RoutePilot menu must reference one view module')
+        raise ValueError('imok menu must reference one view module')
     name = names.pop()
     if not re.fullmatch(r'routepilot_masque_[A-Za-z0-9]+', name):
         raise ValueError('Unexpected view module name')
@@ -37,7 +37,7 @@ def paths(root):
 def stylesheet(root, text):
     matches = CSS.findall(text)
     if len(matches) != 1:
-        raise ValueError('Expected one RoutePilot stylesheet')
+        raise ValueError('Expected one imok stylesheet')
     return root / RESOURCES / 'routepilot' / matches[0]
 
 
@@ -69,13 +69,13 @@ def validate(root=ROOT):
     if css.name != 'style_' + digest(css.read_bytes()) + '.css':
         raise ValueError('Stylesheet changed: run tools/asset_versions.py before packaging')
     if set(css.parent.glob('*.css')) != {css}:
-        raise ValueError('Obsolete RoutePilot stylesheets remain')
+        raise ValueError('Obsolete imok stylesheets remain')
     if helper.stem != 'feedback_' + digest(helper.read_bytes()):
         raise ValueError('Feedback changed: run tools/asset_versions.py before packaging')
     if view.stem != 'routepilot_masque_' + digest(view.read_bytes()):
         raise ValueError('View changed: run tools/asset_versions.py before packaging')
     if set(view.parent.glob('routepilot_masque_*.js')) != {view}:
-        raise ValueError('Obsolete RoutePilot view modules remain')
+        raise ValueError('Obsolete imok view modules remain')
     if set(helper.parent.glob('feedback*.js')) != {helper}:
         raise ValueError('Obsolete feedback modules remain')
     return {'view': view.stem, 'feedback': helper.stem, 'css': css.name}

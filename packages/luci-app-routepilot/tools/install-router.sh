@@ -9,7 +9,7 @@ case "$MODE" in --install|--upgrade|--check) ;; *) echo '用法：sh install-rou
 . /etc/openwrt_release
 case "$DISTRIB_RELEASE:$(uname -m)" in 24.10*:aarch64) ;; *) echo '此包仅验证 ARM64 OpenWrt 24.10；其他架构 / 固件不安装'; exit 1;; esac
 set -- "$HERE"/luci-app-routepilot_*.ipk
-[ "$#" -eq 1 ] && [ -f "$1" ] || { echo '安装目录必须只包含本版的一个 RoutePilot IPK'; exit 1; }
+[ "$#" -eq 1 ] && [ -f "$1" ] || { echo '安装目录必须只包含本版的一个 imok IPK'; exit 1; }
 PKG=$1
 RUNTIME="$HERE/routepilot-runtime-arm64_2026.8.2115.0.tgz"
 [ -f "$RUNTIME" ] && [ -f "$HERE/SHA256SUMS" ] || { echo '缺少运行环境包或 SHA256SUMS'; exit 1; }
@@ -44,6 +44,6 @@ if [ "$MODE" = --install ]; then
  mv "$STAGE" /opt/routepilot/runtime
 fi
 if ! opkg install "$PKG"; then echo '插件安装未完成。运行环境保留；请先核查依赖 / 软件源，不要删除原注册信息。'; exit 1; fi
-echo '安装完成：LuCI → 服务 → RoutePilot → Cloudflare 配置中心。'
+echo '安装完成：LuCI → 服务 → imok → Cloudflare 配置中心。'
 echo '首次安装默认关闭，需在自己的账户登录后选择出口与接管范围，再手动启用。'
 echo '升级保留已保存配置，可能短暂重连并按原启用状态恢复。Workers 仍需独立检测、手动启用。'

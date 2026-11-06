@@ -1,6 +1,6 @@
 {
   "luci-app-routepilot": {
-    "description": "Manage only RoutePilot Cloudflare configuration",
+    "description": "Manage only imok Cloudflare configuration",
     "read": {
       "uci": [
         "routepilot"

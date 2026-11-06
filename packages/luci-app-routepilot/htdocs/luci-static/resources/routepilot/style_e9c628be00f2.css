@@ -1,4 +1,4 @@
-/* Scoped to RoutePilot. Do not restyle other LuCI applications. */
+/* Scoped to imok. Do not restyle other LuCI applications. */
 .rp-layout{--rp-ink:#1d2939;--rp-muted:#475467;--rp-line:#e4e7ec;--rp-blue:#2554cf;max-width:1120px;margin:0 auto;color:var(--rp-ink);font:inherit;line-height:1.6}
 .rp-layout *{box-sizing:border-box}
 .rp-layout .rp-brand{display:inline-block;font-size:.9em;letter-spacing:.5px;font-weight:650;color:var(--rp-blue);margin-bottom:5px}
